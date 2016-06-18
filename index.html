@@ -1,52 +1,95 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+    <!--Import Google Icon Font-->
+    <link href="http://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!--Let browser know website is optimized for mobile-->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>    <!-- Compiled and minified CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/css/materialize.min.css">
     <link href="main.css" rel="stylesheet">
+    <link rel="shortcut icon" type="image/png" href="guitar.png"/>
 </head>
 <body>
+    <!--Import jQuery before materialize.js-->
+    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <!-- Compiled and minified JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/js/materialize.min.js"></script>
     <div class="container">
-        <div>
-            <img src="profile-md.jpg" class="img-responsive" alt="Responsive image">
+        <div class="card">
+            <div class="card-image">
+                <img src="profile-md.jpg">
+                <span class="card-title"></span>
+            </div>
+            <div class="card-content">
+                <div>
+                    <p class="flow-text">(Davidson) Minsheng Zheng is a passionate full stack developer. He is currently a graduate student at OCAD University, Toronto, while working for the Visual Analytics Lab as a research assistant.</p>
+                </div>
+            </div>
         </div>
 
-        <h2>Projects in progress</h2>
-        <ul class="list-unstyled">
-            <li>None. Working and studying at the moment.</li>
-        </ul>
+        <ul class="collapsible popout" data-collapsible="accordion">
+            <li>
+                <div class="collapsible-header"><i class="material-icons">work</i>Research Assistantship</div>
+                <div class="collapsible-body">
+                    <div class="collection">
+                        <a href="#!" class="collection-item">Visual Exploration and Presentation System <span class="chip">Meteor</span> <span class="chip">AngularJS</span></a>
+                    </div>
+                </div>
+            </li>
+            <li>
+                <div class="collapsible-header"><i class="material-icons">group_work</i>Completed Projects</div>
+                <div class="collapsible-body">
+                    <div class="collection">
+                        <a href="#!" class="collection-item">VR Gallery of Public Arts <span class="chip">Unity</span> <span class="chip">Oculus Rift SDK</span></a>
+                        <a href="https://github.com/Minsheng/github3dTreemap" target="_blank" class="collection-item">Visualize Github projects and contributions <span class="chip">d3</span> <span class="chip">threejs</span></a>
+                        
+                        <a href="http://dfielites.wix.com/shitfalling" target="_blank" class="collection-item">Shit Falling <span class="chip">Unity 3D</span></a>
+                        
+                        <a href="http://blog.ocad.ca/wordpress/digf6037-fw201502-01/2015/12/tamagotchi-project-amaze-an-autonomous-turtle-robot/" target="_blank" class="collection-item">Autonomous Turtle Robot <span class="chip">Arduino</span></a>
+                        
+                        <a href="http://blog.ocad.ca/wordpress/digf6037-fw201502-01/2015/11/golf-project-shenzhen-bat-the-line-following-autonomous-robot/" target="_blank" class="collection-item">Line Following Robot <span class="chip">Arduino</span></a>
+                        
+                        <a href="http://blog.ocad.ca/wordpress/digf6037-fw201502-01/2015/11/wooden-mirror-research-project/" target="_blank" class="collection-item">Autonomous Turtle Robot <span class="chip">Arduino</span></a>
+                        
+                        <a href="http://blog.ocad.ca/wordpress/digf6037-fw201502-01/2015/12/tamagotchi-project-amaze-an-autonomous-turtle-robot/" target="_blank" class="collection-item">Wooden Mirror Prototype <span class="chip">Arduino</span></a>
+                        
+                        <a href="https://youtu.be/S0UzGW0DdUk" target="_blank" class="collection-item">Art X - an art rating mobile app prototype <span class="chip">Justinmind</span></a>
+                        
+                        <a href="http://simplelearn.herokuapp.com/" target="_blank" class="collection-item">E-learning System <span class="chip">NodeJS</span></a>
+                        
+                        <a href="http://bigyellowbook.herokuapp.com/" target="_blank" class="collection-item">Simple Shopping Cart Web App <span class="chip">NodeJS</span></a>
+                        
+                        <a href="http://smartlight.herokuapp.com/" target="_blank" class="collection-item">Subscription-based Membership Web App <span class="chip">Ruby on Rails</span></a>
 
-        <h2>Research Assistantship</h2>
-        <ul class="list-unstyled">
-            <li><a>Visual Exploration and Presentation System</a></li>
+                        <a href="http://sites.google.com/site/minshengzhengsportfolio/worksample" target="_blank" class="collection-item">More Previous Projects </a>
+                    </div> 
+                </div>
+            </li>
+            <li>
+                <div class="collapsible-header"><i class="material-icons">code</i>Code Sample</div>
+                <div class="collapsible-body">
+                    <div class="collection">
+                        <a href="http://github.com/minsheng" target="_blank" class="collection-item">Github</a>
+                    </div>
+                </div>
+            </li>
         </ul>
-
-        <h2>Recent Completed Projects</h2>
-        <ul class="list-unstyled">
-            <li><a>VR Gallery of Public Arts (Unity + Oculus Rift)</a></li>
-            <li><a href="https://github.com/Minsheng/github3dTreemap" target="_blank">Visualize Github projects and contributions using D3</a></li>
-            <li><a href="http://dfielites.wix.com/shitfalling" target="_blank">Unity 3D Casual Game</a></li>
-            <li><a href="http://blog.ocad.ca/wordpress/digf6037-fw201502-01/2015/12/tamagotchi-project-amaze-an-autonomous-turtle-robot/" target="_blank">Autonomous Turtle Robot (Arduino)</a></li>
-            <li><a href="http://blog.ocad.ca/wordpress/digf6037-fw201502-01/2015/11/golf-project-shenzhen-bat-the-line-following-autonomous-robot/" target="_blank">Line Following Robot (Arduino)</a></li>
-            <li><a href="http://blog.ocad.ca/wordpress/digf6037-fw201502-01/2015/11/wooden-mirror-research-project/" target="_blank">Wooden Mirror Prototype (Arduino)</a></li>
-            <li><a href="https://youtu.be/S0UzGW0DdUk" target="_blank">Art Rating App Prototype (Justinmind)</a></li>
-            <li><a href="http://simplelearn.herokuapp.com/" target="_blank">NodeJS E-lerning System</a></li>
-            <li><a href="http://bigyellowbook.herokuapp.com/" target="_blank">NodeJS Simple Shopping Cart Web App</a></li>
-            <li><a href="http://smartlight.herokuapp.com/" target="_blank">Rails Subscription-based Membership Web App</a></li>
-            <li></li>
-        </ul>
-
-        <h2>Previous Projects</h2>
-        <ul class="list-unstyled">
-            <li><a href="http://sites.google.com/site/minshengzhengsportfolio/worksample" target="_blank">Work Sample</a></li>
-        </ul>
-
-        <h2>Code Sample</h2>
-        <ul class="list-unstyled">
-            <li><a href="http://github.com/minsheng" target="_blank">Github repositories</a></li>
-        </ul>
-
     </div>
+    <footer class="page-footer">
+        <div class="container">
+            <div class="row">
+                <div class="col l6 s12">
+                    <h5 class="white-text">Contact</h5>
+                    <p class="grey-text text-lighten-4">nadavidsonzheng[at]gmail[dot]com</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer-copyright">
+            <div class="container">
+                © 2016 Copyright Minsheng Zheng
+            </div>
+        </div>
+    </footer>
 </body>
 </html>
