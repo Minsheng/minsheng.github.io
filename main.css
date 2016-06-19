@@ -1,6 +1,13 @@
 body {
 	background-color: #fcfcfc;
 	color: #42a5f5;
+	margin: 0;
+}
+canvas {
+    position: absolute;
+    z-index: -1000;
+	display: inline-block;
+	vertical-align: bottom;
 }
 
 .card {
