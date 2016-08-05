@@ -53,7 +53,8 @@
     function pubs() {
       pubnub = PUBNUB.init({
           publish_key: 'pub-c-b9c03254-fd27-4519-9f3e-a761a812aa47',
-          subscribe_key: 'sub-c-74b3f1bc-5a55-11e6-8680-0619f8945a4f'
+          subscribe_key: 'sub-c-74b3f1bc-5a55-11e6-8680-0619f8945a4f',
+          ssl : (('https:' == document.location.protocol) ? true : false)
       });
 
       // Subscribe to the demo_tutorial channel
