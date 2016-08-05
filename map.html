@@ -1,0 +1,74 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="">
+  <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+  <script src="https://cdn.pubnub.com/pubnub-3.15.2.js"></script>
+  <title>Pubnub + Map Test</title>
+
+  <style>
+    html, body, #map-canvas {
+      height: 700px;
+      margin: 0px;
+      padding: 0px
+    }
+  </style>
+
+  <script src="https://maps.googleapis.com/maps/api/js?v=3.exp"></script>
+</head>
+<body>
+  <h1>PubNub Map Test</h1>
+  <div id="map-canvas"></div>
+
+  <!-- Instantiate PubNub -->
+  <script type="text/javascript">
+    var lat = null;
+    var lng = null;
+
+    // sets your location as default
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function(position) {
+        var locationMarker = null;
+        if (locationMarker){
+          // return if there is a locationMarker bug
+          return;
+        }
+
+        lat = position.coords["latitude"];
+        lng = position.coords["longitude"];
+
+       console.log(lat, lng);
+
+       pubs();
+      },
+      function(error) {
+        console.log("Error: ", error);
+      },
+      {
+        enableHighAccuracy: true
+      }
+      );
+    }
+
+    function pubs() {
+      pubnub = PUBNUB.init({
+          publish_key: 'pub-c-b9c03254-fd27-4519-9f3e-a761a812aa47',
+          subscribe_key: 'sub-c-74b3f1bc-5a55-11e6-8680-0619f8945a4f'
+      });
+
+      // Subscribe to the demo_tutorial channel
+      pubnub.subscribe({
+          channel: 'pikachu',
+          message: function(message, channel) {
+            console.log(message)
+            lat = message['lat'];
+            lng = message['lng'];
+            //custom method
+            // redraw();
+          },
+          connect: function() {console.log("PubNub Connected")}
+      });
+    }
+  </script>
+</body>
+</html>
