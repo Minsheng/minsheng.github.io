@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Test device orientation</title>
+    </head>
+    <body>
+        <p class="warning"></p>
+        <pre class="output"></pre>
+        <script>
+            var initialX = null;
+            var initialY = null;
+
+            var output = document.querySelector('.output');
+
+            function handleOrient(event) {
+
+                var x = event.beta ? event.beta : event.y * 90;
+                var y = event.gamma ? event.gamma : event.x * 90;
+
+                // window.console && console.info('Raw position: x, y: ', x, y);
+
+                output.innerHTML  = "beta : " + x + "\n";
+                output.innerHTML += "gamma: " + y + "\n";
+
+                if (!initialX && !initialY) {
+                    initialX = x;
+                    initialY = y;
+                } else {
+                    var positionX = initialX - x;
+                    var positionY = initialY - y;
+                }
+            }
+
+            function isEventFired() {
+                if (!initialX && !initialY) {
+                    var warningElement = document.querySelector('.warning');
+                    warningElement.innerText = 'Warning: Cannot receive device orientation events, this browser is not supported.';
+                    warningElement.style.display = 'inline-block';
+                }
+            }
+
+            window.addEventListener("deviceorientation", handleOrient, true);
+
+            setTimeout(isEventFired, 2000);
+        </script>
+    </body>
+</html>
