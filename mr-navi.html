@@ -12,15 +12,18 @@
         <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.0.5.js"></script>
         <script type="text/javascript">
             // this function will be executed when the page is loaded
-            $(function() {
-                const options = {
-                    timeout: (5 * 1000),
-                    maximumAge: 0,
-                    enableHighAccuracy: true
-                };
+            
+            var options = {
+                timeout: (5 * 1000),
+                maximumAge: 0,
+                enableHighAccuracy: true
+            };
 
-                // random client id for pubnub connection
-                var name = "";
+            window.addEventListener("deviceorientation", handleOrient, true);
+
+            function handleOrient(event) {
+                var x = event.beta ? event.beta : event.y * 90;
+                var y = event.gamma ? event.gamma : event.x * 90;
 
                 // Try HTML5 geolocation.
                 if (navigator.geolocation) {
@@ -92,21 +95,10 @@
                         'Error: The Geolocation service failed.' :
                         'Error: Your browser doesn\'t support geolocation.');
                 };
+            }
 
-                var positionTimer = navigator.geolocation.watchPosition(
-                    success
-                );
-
-                // If the position hasn't updated within 5 minutes, stop
-                // monitoring the position for changes.
-                setTimeout(
-                    function(){
-                        // Clear the position watcher.
-                        navigator.geolocation.clearWatch( positionTimer );
-                    },
-                    (1000 * 60 * 5)
-                );
-            });
+            // random client id for pubnub connection
+            // var name = "";
         </script>
     </body>
 </html>
