@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Test presence</title>
+        <style>
+            .info {
+                position: fixed;
+                top: 0px;
+                left: 0px;
+                cursor: pointer;
+                opacity: 0.9;
+                z-index: 10000;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="info">
+            Current users: <span id="numUser">NaN</span>
+        </div>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.0/jquery.min.js"></script>
+        <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.0.5.js"></script>
+        <script type="text/javascript">
+            /*
+            Code sample from,
+            https://www.pubnub.com/docs/javascript/api-reference-sdk-v4
+            */
+            class User {
+                constructor(uuid, geodata, position) {
+                    this.uuid = uuid;
+                    this.geodata = geodata;
+                    this.position = position;
+                }
+
+                // get uuid() {
+                //     return this.uuid;
+                // }
+                //
+                // get geodata() {
+                //     return this.geodata;
+                // }
+                //
+                // get position() {
+                //     return this.position;
+                // }
+            }
+
+            var users = {};
+
+            $(function() {
+                var currUuid = generateUUID();
+
+                var pubnub = new PubNub({
+                    publishKey: 'pub-c-d223f6bb-65ab-4128-b272-3984970759c1',
+                    subscribeKey: 'sub-c-441be6a2-5d04-11e6-ada4-02ee2ddab7fe',
+                    uuid: currUuid,
+                    heartbeatInterval: 5,
+                    presenceTimeout: 10
+                });
+
+                pubnub.subscribe({
+                    channels: ['mr-demo'],
+                    withPresence: true
+                });
+
+                // View the UUID and state objects of those currently subscribed
+                pubnub.hereNow(
+                    {
+                        channels: ['mr-demo'],
+                        includeUUIDs: true,
+                        includeState: true
+                    },
+                    function (status, response) {
+                        // handle status, response
+                        console.log("Here now:");
+                        console.log(response);
+                    }
+                );
+
+                pubnub.addListener({
+                    status: function(statusEvent) {
+                        if (statusEvent.category === "PNConnectedCategory") {
+                            // var newState = {
+                            //     isTyping: true
+                            // };
+                            // pubnub.setState(
+                            //     {
+                            //         state: newState
+                            //     },
+                            //     function (status) {
+                            //         // handle state setting response
+                            //         // console.log(status);
+                            //     }
+                            // );
+                        }
+                    },
+                    message: function(message) {
+                        // handle message
+                        console.log(message);
+                    },
+                    presence: function(e) {
+                        // handle presence event
+                        console.log("Presence:");
+                        console.log(e);
+                        updateUsers(e);
+                    }
+                });
+
+                // setInterval(function(){
+                //     pubnub.publish({
+                //         channel:  'mr-demo',
+                //         message:
+                //         [
+                //             {"latlng":[31,-99]},
+                //             {"latlng":[32,-100]},
+                //             {"latlng":[33,-101]},
+                //             {"latlng":[35,-102]}
+                //         ]
+                //     });
+                // }, 2500);
+
+                function updateUsers(presence) {
+                    if (presence) {
+                        let newUuid = presence.uuid;
+                        // if another user joins
+                        if ((presence.action === "join") && (newUuid !== currUuid)) {
+                            // update gloal users
+                            users[newUuid] = new User(newUuid, {}, {});
+                        }
+                        // if a user leaves
+                        else if (presence.action === "timeout") {
+                            delete users[presence.uuid]
+                        }
+
+                        $("#numUser").html(presence.occupancy);
+                    }
+                }
+
+                function generateUUID() {
+                    var d = new Date().getTime();
+                    var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                        var r = (d + Math.random()*16)%16 | 0;
+                        d = Math.floor(d/16);
+                        return (c=='x' ? r : (r&0x3|0x8)).toString(16);
+                    });
+                    return uuid;
+                };
+            });
+        </script>
+    </body>
+</html>
