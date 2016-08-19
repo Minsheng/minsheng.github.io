@@ -4,7 +4,14 @@
         <meta charset="utf-8">
         <title>Test presence</title>
         <style>
-            .info {
+            body {
+            	font-family: Monospace;
+            	background-color: #f0f0f0;
+            	margin: 0px;
+            	overflow: hidden;
+            }
+
+            #info {
                 position: fixed;
                 top: 0px;
                 left: 0px;
@@ -15,12 +22,16 @@
         </style>
     </head>
     <body onload="justRunFam()">
-        <div class="info">
+        <!-- <div id="info">
             Current users: <span id="numUser">NaN</span>
             <div id="userdata"></div>
-        </div>
+        </div> -->
+        <div id="canvas"></div>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.0/jquery.min.js"></script>
-        <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.0.5.js"></script>
+        <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.0.5.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r79/three.min.js"></script>
+        <script src="js/TrackballControls.js"></script>
+        <script src="js/Detector.js"></script>
         <script type="text/javascript">
             /*
             Code sample from,
@@ -37,7 +48,7 @@
             var users = {};
             var currUuid = '';
             const MR_CHANNEL = 'mr-demo';
-            const GEO_INTERVAL = 200;
+            const GEO_INTERVAL = 500;
 
             // geolocation config options
             const options = {
@@ -46,7 +57,14 @@
                 enableHighAccuracy: true
             };
 
+            // for Threejs
+            var userGeometries = {};
+            var renderer;
+            var scene, camera, controls, container, light;
+
             function justRunFam() {
+                if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
                 currUuid = generateUUID(); // generate a random id for the current user
 
                 var pubnub = new PubNub({
@@ -78,6 +96,7 @@
                         if (response.channels[MR_CHANNEL]) {
                             var userList = response['channels'][MR_CHANNEL]['occupants'];
                             initializeUsers(userList);
+                            initScene();
                         }
                     }
                 );
@@ -85,22 +104,9 @@
                 pubnub.addListener({
                     status: function(statusEvent) {
                         if (statusEvent.category === "PNConnectedCategory") {
-                            // var newState = {
-                            //     isTyping: true
-                            // };
-                            // pubnub.setState(
-                            //     {
-                            //         state: newState
-                            //     },
-                            //     function (status) {
-                            //         // handle state setting response
-                            //         // console.log(status);
-                            //     }
-                            // );
                         }
                     },
                     message: function(m) {
-                        // handle message
                         var data = m.message;
 
                         if (!jQuery.isEmptyObject(data) &&
@@ -109,16 +115,10 @@
 
                             // update geolocation only for other users
                             if (data.uuid !== currUuid) updatePosition(data);
-
-                            showUserData();
                         }
                     },
                     presence: function(e) {
-                        // handle presence event
-                        // console.log("Presence of " + e.uuid + " :");
-                        // console.log(e);
                         updateUsers(e);
-                        showUserData();
                     }
                 });
 
@@ -126,8 +126,119 @@
                 // Get geolocation
                 //////////////////////////
                 setInterval(function(){
+                    animate();
                     refreshGeolocation();
                 }, GEO_INTERVAL);
+
+                function initScene() {
+                    container = $('#canvas');
+
+                    camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.1, 10000 );
+                    // place camera up and looking down
+                    camera.position.set(0,100,200);
+                    camera.up = new THREE.Vector3(0,0,0);
+                    camera.lookAt(new THREE.Vector3(0,0,0));
+
+    				controls = new THREE.TrackballControls( camera );
+
+    				controls.rotateSpeed = 1.0;
+    				controls.zoomSpeed = 1.2;
+    				controls.panSpeed = 0.8;
+
+                    // controls.staticMoving = true;
+    				// controls.dynamicDampingFactor = 0.3;
+
+    				controls.keys = [ 65, 83, 68 ];
+
+    				controls.addEventListener( 'change', render );
+
+                	scene = new THREE.Scene();
+
+                    renderer = new THREE.WebGLRenderer( { antialias: false } );
+
+                    // add a reference object
+                    var ref = new THREE.CubeGeometry(4, 4, 4);
+                    var refMat = new THREE.MeshLambertMaterial({color: 0xff0000});
+                    var refMesh = new THREE.Mesh(ref, refMat);
+                    refMesh.name = "reference";
+                    refMesh.position.set(35,0,-85);
+                    scene.add(refMesh);
+
+                    // add grid helper
+                    var gridHelper = new THREE.GridHelper( 100, 2 );
+                    scene.add( gridHelper );
+
+    				// construct scene and player objects
+                    spawnCurrUsers();
+
+                    // lights
+
+    				light = new THREE.DirectionalLight( 0xffffff );
+    				light.position.set( 1, 1, 1 );
+    				scene.add( light );
+
+    				light = new THREE.DirectionalLight( 0x002288 );
+    				light.position.set( -1, -1, -1 );
+    				scene.add( light );
+
+    				light = new THREE.AmbientLight( 0x222222 );
+    				scene.add( light );
+
+                    // renderer
+
+                    renderer.setClearColor( 0xffffff );
+    				renderer.setPixelRatio( window.devicePixelRatio );
+    				renderer.setSize( window.innerWidth, window.innerHeight );
+                    container.append( renderer.domElement );
+
+                    // render();
+                }
+
+                function animate() {
+    				requestAnimationFrame( animate );
+    				controls.update();
+                    render();
+    			}
+
+    			function render() {
+    				renderer.render( scene, camera );
+    			}
+
+                function spawnCurrUsers() {
+                    for (var key in users) {
+                        if (users.hasOwnProperty(key)) {
+                            var userObj = users[key];
+                            if (!jQuery.isEmptyObject(userObj) &&
+                                userObj.uuid &&
+                                !jQuery.isEmptyObject(userObj.geoloc)) {
+                                spawnNewUser(userObj.uuid, userObj.geoloc);
+                            } else {
+                                spawnNewUser(userObj.uuid, {});
+                            }
+                        }
+                    }
+                }
+
+                // takes a user id and create a new 3D object
+                function spawnNewUser(uuid, geoloc) {
+                    var sampleGeo = new THREE.SphereBufferGeometry( 2, 8, 6 );
+                    // sampleGeo.translate(x,0,z);
+                    var sampleMat = new THREE.MeshBasicMaterial( { color: Math.random()*0xffffff} );
+                    var sampleMesh = new THREE.Mesh( sampleGeo, sampleMat );
+
+                    sampleMesh.name = uuid;
+
+                    if (!jQuery.isEmptyObject(geoloc)) {
+                        var x = convertCoord(userObj.geoloc.lat);
+                        var z = convertCoord(userObj.geoloc.lng);
+                        sampleMesh.position.set(x,0,z);
+                    }
+
+                    // keep track of the global geometry list
+                    // userGeometries[sampleMesh.name] = sampleMesh;
+
+                    scene.add( sampleMesh );
+                }
 
                 function refreshGeolocation() {
                     if (navigator.geolocation) {
@@ -158,8 +269,6 @@
                         geoloc: pos
                     });
 
-                    showUserData();
-
                     // console.log("Your current loc: " + pos.lat + " , " + pos.lng);
                 }
 
@@ -172,7 +281,17 @@
 
                 function updatePosition(data) {
                     if (users.hasOwnProperty(data.uuid)) {
-                        users[currUuid].geoloc = data.geoloc;
+                        var userObj = users[data.uuid];
+                        userObj.geoloc = data.geoloc;
+
+                        var x = convertCoord(userObj.geoloc.lat);
+                        var z = convertCoord(userObj.geoloc.lng);
+
+                        // update 3D object position
+                        var target3DObj = scene.getObjectByName(userObj.uuid);
+                        if (target3DObj) {
+                            target3DObj.position.set(x, 0, z);
+                        }
                     }
                 }
 
@@ -200,34 +319,43 @@
                         if ((presence.action === "join") && (newUuid !== currUuid)) {
                             // update gloal user list
                             users[newUuid] = new User(newUuid, {}, {});
+
+                            spawnNewUser(newUuid, {});
                         }
                         // if a user leaves
                         else if (presence.action === "timeout") {
-                            delete users[presence.uuid]
+                            delete users[newUuid]
+                            // delete userGeometries[newUuid]
+                            // remove scene object
+                            scene.remove(scene.getObjectByName(newUuid));
                         }
 
-                        $("#numUser").html(presence.occupancy);
+                        // $("#numUser").html(presence.occupancy);
                     }
                 }
 
+                //////////////////////////
+                // Utilities
+                //////////////////////////
+
                 function showUserData() {
-                    var result = [];
-
-                    for (var key in users) {
-                        if (users.hasOwnProperty(key)) {
-                            var userObj = users[key];
-                            if (!jQuery.isEmptyObject(userObj) &&
-                                userObj.uuid &&
-                                !jQuery.isEmptyObject(userObj.geoloc)) {
-                                var p = "<p>"+userObj.geoloc.lat+","+userObj.geoloc.lng+"</p>"
-                                result.push(p);
-                            } else {
-                                result.push("<p>Not available</p>");
-                            }
-                        }
-                    }
-
-                    $("#userdata").html(result);
+                    // var result = [];
+                    //
+                    // for (var key in users) {
+                    //     if (users.hasOwnProperty(key)) {
+                    //         var userObj = users[key];
+                    //         if (!jQuery.isEmptyObject(userObj) &&
+                    //             userObj.uuid &&
+                    //             !jQuery.isEmptyObject(userObj.geoloc)) {
+                    //             var p = "<p>"+userObj.geoloc.lat+","+userObj.geoloc.lng+"</p>"
+                    //             result.push(p);
+                    //         } else {
+                    //             result.push("<p>Not available</p>");
+                    //         }
+                    //     }
+                    // }
+                    //
+                    // $("#userdata").html(result);
                 }
 
                 function generateUUID() {
@@ -238,6 +366,25 @@
                         return (c=='x' ? r : (r&0x3|0x8)).toString(16);
                     });
                     return uuid;
+                }
+
+                function convertCoord(val) {
+                    // return Math.floor(val/10.0);
+                    var result = 0;
+                    var strDeci = String(val % 1);
+
+                    if (val >=0) {
+                        var sixth = strDeci.charAt(7);
+                        var seventh = strDeci.charAt(8);
+                        var res = sixth + seventh;
+                        result = Number(res);
+                    } else {
+                        var sixth = strDeci.charAt(6);
+                        var seventh = strDeci.charAt(7);
+                        var res = sixth + seventh;
+                        result = Number(res);
+                    }
+                    return result;
                 }
             }
         </script>
