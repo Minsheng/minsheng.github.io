@@ -37,7 +37,7 @@
             var users = {};
             var currUuid = '';
             const MR_CHANNEL = 'mr-demo';
-            const GEO_INTERVAL = 1500;
+            const GEO_INTERVAL = 200;
 
             // geolocation config options
             const options = {
@@ -106,12 +106,9 @@
                         if (!jQuery.isEmptyObject(data) &&
                             data.uuid &&
                             !jQuery.isEmptyObject(data.geoloc)) {
-                            if (data.uuid === currUuid) { // do not process if it is the same user
-                                console.log("I got my own message");
-                            } else {
-                                console.log("Message from " + data.uuid);
-                                updatePosition(data);
-                            }
+
+                            // update geolocation only for other users
+                            if (data.uuid !== currUuid) updatePosition(data);
 
                             showUserData();
                         }
@@ -163,7 +160,7 @@
 
                     showUserData();
 
-                    console.log("Your current loc: " + pos.lat + " , " + pos.lng);
+                    // console.log("Your current loc: " + pos.lat + " , " + pos.lng);
                 }
 
                 function handleLocationError(browserHasGeolocation) {
