@@ -14,10 +14,10 @@
             }
         </style>
     </head>
-    <body>
+    <body onload="justRunFam()">
         <div class="info">
             Current users: <span id="numUser">NaN</span>
-            <div class="userdata"></div>
+            <div id="userdata"></div>
         </div>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.0/jquery.min.js"></script>
         <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.0.5.js"></script>
@@ -32,23 +32,12 @@
                     this.geoloc = geoloc;
                     this.position = position;
                 }
-
-                // get uuid() {
-                //     return this.uuid;
-                // }
-                //
-                // get geoloc() {
-                //     return this.geoloc;
-                // }
-                //
-                // get position() {
-                //     return this.position;
-                // }
             }
 
             var users = {};
             var currUuid = '';
             const MR_CHANNEL = 'mr-demo';
+            const GEO_INTERVAL = 1500;
 
             // geolocation config options
             const options = {
@@ -57,12 +46,13 @@
                 enableHighAccuracy: true
             };
 
-            $(function() {
+            function justRunFam() {
                 currUuid = generateUUID(); // generate a random id for the current user
 
                 var pubnub = new PubNub({
                     publishKey: 'pub-c-d223f6bb-65ab-4128-b272-3984970759c1',
                     subscribeKey: 'sub-c-441be6a2-5d04-11e6-ada4-02ee2ddab7fe',
+                    ssl: true,
                     uuid: currUuid,
                     heartbeatInterval: 5,
                     presenceTimeout: 60
@@ -86,7 +76,7 @@
                         console.log(response);
 
                         if (response.channels[MR_CHANNEL]) {
-                            let userList = response['channels'][MR_CHANNEL]['occupants'];
+                            var userList = response['channels'][MR_CHANNEL]['occupants'];
                             initializeUsers(userList);
                         }
                     }
@@ -111,15 +101,19 @@
                     },
                     message: function(m) {
                         // handle message
-                        let data = m.message;
+                        var data = m.message;
 
-                        if (data && data.uuid && data.geoloc) {
+                        if (!jQuery.isEmptyObject(data) &&
+                            data.uuid &&
+                            !jQuery.isEmptyObject(data.geoloc)) {
                             if (data.uuid === currUuid) { // do not process if it is the same user
                                 console.log("I got my own message");
                             } else {
                                 console.log("Message from " + data.uuid);
                                 updatePosition(data);
                             }
+
+                            showUserData();
                         }
                     },
                     presence: function(e) {
@@ -136,7 +130,7 @@
                 //////////////////////////
                 setInterval(function(){
                     refreshGeolocation();
-                }, 2500);
+                }, GEO_INTERVAL);
 
                 function refreshGeolocation() {
                     if (navigator.geolocation) {
@@ -167,6 +161,8 @@
                         geoloc: pos
                     });
 
+                    showUserData();
+
                     console.log("Your current loc: " + pos.lat + " , " + pos.lng);
                 }
 
@@ -180,7 +176,6 @@
                 function updatePosition(data) {
                     if (users.hasOwnProperty(data.uuid)) {
                         users[currUuid].geoloc = data.geoloc;
-                        showUserData();
                     }
                 }
 
@@ -193,8 +188,8 @@
 
                 function initializeUsers(list) {
                     if (list.length > 0) {
-                        for (let i=0; i < list.length; i++) {
-                            users[list[i]['uuid']] = new User(list[i]['uuid'], undefined, undefined);
+                        for (var i=0; i < list.length; i++) {
+                            users[list[i]['uuid']] = new User(list[i]['uuid'], {}, {});
                         }
                     } else {
                         console.log("No users is connected...")
@@ -203,7 +198,7 @@
 
                 function updateUsers(presence) {
                     if (presence) {
-                        let newUuid = presence.uuid;
+                        var newUuid = presence.uuid;
                         // if another user joins
                         if ((presence.action === "join") && (newUuid !== currUuid)) {
                             // update gloal user list
@@ -220,13 +215,14 @@
 
                 function showUserData() {
                     var result = [];
-                    var $target = $(".userdata");
 
                     for (var key in users) {
                         if (users.hasOwnProperty(key)) {
-                            let userObj = users[key];
-                            if (userObj && userObj.uuid && userObj.geoloc) {
-                                let p = "<p>"+userObj.geoloc.lat+","+userObj.geoloc.lng+"</p>"
+                            var userObj = users[key];
+                            if (!jQuery.isEmptyObject(userObj) &&
+                                userObj.uuid &&
+                                !jQuery.isEmptyObject(userObj.geoloc)) {
+                                var p = "<p>"+userObj.geoloc.lat+","+userObj.geoloc.lng+"</p>"
                                 result.push(p);
                             } else {
                                 result.push("<p>Not available</p>");
@@ -234,7 +230,7 @@
                         }
                     }
 
-                    $target.html(result);
+                    $("#userdata").html(result);
                 }
 
                 function generateUUID() {
@@ -245,8 +241,8 @@
                         return (c=='x' ? r : (r&0x3|0x8)).toString(16);
                     });
                     return uuid;
-                };
-            });
+                }
+            }
         </script>
     </body>
 </html>
