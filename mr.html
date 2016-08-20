@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Test presence</title>
+        <style>
+            body {
+            	font-family: Monospace;
+            	background-color: #f0f0f0;
+            	margin: 0px;
+            	overflow: hidden;
+            }
+
+            #info {
+                position: fixed;
+                top: 0px;
+                left: 0px;
+                cursor: pointer;
+                opacity: 0.9;
+                z-index: 10000;
+            }
+        </style>
+    </head>
+    <body onload="justRunFam()">
+        <div id="canvas"></div>
+		<script type="text/javascript" src="js/jquery-3.1.0.min.js"></script>
+        <script type="text/javascript" src="js/three-r70.min.js"></script>
+        <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r76/three.min.js" charset="utf-8"></script> -->
+        <script type="text/javascript" src="js/TrackballControls.js"></script>
+        <script type="text/javascript" src="js/Detector.js"></script>
+        <script type="text/javascript" src="js/shader.js"></script>
+        <script type="text/javascript" src="js/math.js"></script>
+        <script type="text/javascript" src="js/pubnub.4.0.6.min.js"></script>
+
+        <script type="text/javascript">
+            /*
+            *** References ***
+            Pubnub code sample from,
+            https://www.pubnub.com/docs/javascript/api-reference-sdk-v4
+
+            City model generation code modified from
+            THREE.geojson by Sebastian Meier,
+            https://github.com/sebastian-meier/THREE.geojson
+
+            Trackball control code sample from,
+            https://github.com/mrdoob/three.js/blob/dev/examples/misc_controls_trackball.html
+
+            All other code are co-created by
+            Michael James Carnevale
+            Minsheng (Davidson) Zheng
+
+            August, 2016
+            */
+
+            // User data structure
+            class User {
+                constructor(uuid, geoloc, position) {
+                    this.uuid = uuid;
+                    this.geoloc = geoloc;
+                    this.position = position;
+                }
+            }
+
+            var users = {};
+            var currUuid = '';
+
+            // pubub channel
+            const MR_CHANNEL = 'mr-demo';
+
+            // the interval to request geolocation data
+            const GEO_INTERVAL = 5 *1000;
+
+            // geolocation config options
+            const options = {
+                timeout: (2 * 1000),
+                maximumAge: 0,
+                enableHighAccuracy: true
+            };
+
+            // configs for bulding 3D city model
+            /*
+				Dataset specific:
+					if useHeight = true then the height is calculated from the heightAttr value in the geoJson file
+					if not the height of each object will be 0
+			*/
+            var jsonFile = "./waterfront.geojson",
+				useHeight = true,
+				heightAttr = "cartodb_id",
+				heightFn = function(val) {
+                    return Math.pow(parseFloat(val), root);
+                },
+				root = 1/2.5,
+				max = heightFn(900),
+				z_max = 500.0,
+				z_rel = 0.01,
+				offset_x = -45,
+				offset_y = 59,
+				offset_z = 0,
+				r = 0,
+				scale_x = 209,
+				scale_y = 350,
+				scale_factor = 0.1,
+				heightScaler = 0.5,
+				animateHeight = false;
+
+            // Due to javascripts limitations
+            // we need to parse the data in subsets (5000)
+            var shapeCount = 0,
+                shapes = [],
+                subset_size = 5000;
+
+            // for Threejs
+            var userGeometries = {};
+            var renderer;
+            var scene, camera, controls, container, light;
+
+            var json, mesh, group, groupGeometry;
+
+            // All zero or false height values will be ignored
+            var fast = false;
+            var ww = window.innerWidth;
+            var wh = window.innerHeight;
+
+            // Set as True if you want to see Data Calculation Logs
+            var logData_Yes_No = false;
+
+            // For console log messages
+			var log = true;
+
+            function justRunFam() {
+                if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+                currUuid = generateUUID(); // generate a random id for the current user
+
+                //////////////////////////
+                // Pubnub data transmission setup
+                //////////////////////////
+
+                var pubnub = new PubNub({
+                    publishKey: 'pub-c-d223f6bb-65ab-4128-b272-3984970759c1',
+                    subscribeKey: 'sub-c-441be6a2-5d04-11e6-ada4-02ee2ddab7fe',
+                    ssl: true,
+                    uuid: currUuid,
+                    heartbeatInterval: 5,
+                    presenceTimeout: 60
+                });
+
+                pubnub.subscribe({
+                    channels: [MR_CHANNEL],
+                    withPresence: true
+                });
+
+                // View the UUID and state objects of those currently subscribed
+                pubnub.hereNow(
+                    {
+                        channels: [MR_CHANNEL],
+                        includeUUIDs: true,
+                        includeState: true
+                    },
+                    function (status, response) {
+                        // handle status, response
+                        console.log("Here now:");
+                        console.log(response);
+
+                        if (response.channels[MR_CHANNEL]) {
+                            var userList = response['channels'][MR_CHANNEL]['occupants'];
+                            initializeUsers(userList);
+
+                            log("start loading");
+
+                            // initialize 3D environment and objects
+                            $.getJSON(jsonFile, function (data) {
+                                log("Loading of map model complete");
+                                json = data;
+
+                                initScene();
+                            });
+                        }
+                    }
+                );
+
+                pubnub.addListener({
+                    status: function(statusEvent) {
+                        if (statusEvent.category === "PNConnectedCategory") {
+                        }
+                    },
+                    message: function(m) {
+                        var data = m.message;
+
+                        if (!jQuery.isEmptyObject(data) &&
+                            data.uuid &&
+                            !jQuery.isEmptyObject(data.geoloc)) {
+
+                            // update geolocation only for other users
+                            if (data.uuid !== currUuid) updatePosition(data);
+                        }
+                    },
+                    presence: function(e) {
+                        updateUsers(e);
+                    }
+                });
+
+                //////////////////////////
+                // Get geolocation
+                //////////////////////////
+                setInterval(function(){
+                    animate();
+                    refreshGeolocation();
+                }, GEO_INTERVAL);
+
+                function initScene() {
+                    container = $('#canvas');
+
+                    //////////////////////////
+                    // Camera setup
+                    //////////////////////////
+                    camera = new THREE.PerspectiveCamera( 45, ww / wh, 0.1, 10000 );
+                    // place camera up and looking down
+                    camera.position.set(0,100,400);
+                    camera.up = new THREE.Vector3(0,0,0);
+                    camera.lookAt(new THREE.Vector3(0,0,0));
+
+                    // city model bird's eye camera visew
+                    // camera = new THREE.PerspectiveCamera(600, (width / height), 1, 20000);
+                    // camera.position.set(0, 0, 500);
+                    // camera.up = new THREE.Vector3(0,0,-1);
+                    // camera.translateZ( 100 );
+
+                	scene = new THREE.Scene();
+
+                    //////////////////////////
+                    // Renderer setup
+                    //////////////////////////
+                    renderer = new THREE.WebGLRenderer({
+                        antialias: false,
+                        preserveDrawingBuffer: true,
+                        alpha: true
+                    });
+                    renderer.setSize( ww, wh );
+                    // renderer.setClearColor( 0xffffff );
+    				// renderer.setPixelRatio( window.devicePixelRatio );
+                    renderer.shadowMapEnabled = true;
+                    renderer.shadowMapType = THREE.PCFSoftShadowMap;
+                    renderer.setViewport(0, 0, ww, wh);
+
+                    //////////////////////////
+                    // Lights
+                    //////////////////////////
+
+                    light = new THREE.DirectionalLight( 0xffffff );
+                    light.position.set( 1, 1, 1 );
+                    scene.add( light );
+
+                    light = new THREE.DirectionalLight( 0x002288 );
+                    light.position.set( -1, -1, -1 );
+                    scene.add( light );
+
+                    light = new THREE.AmbientLight( 0x222222 );
+                    scene.add( light );
+
+                    //////////////////////////
+                    // Camera control
+                    //////////////////////////
+                    controls = new THREE.TrackballControls( camera );
+
+    				controls.rotateSpeed = 1.0;
+    				controls.zoomSpeed = 1.2;
+    				controls.panSpeed = 0.8;
+
+                    controls.staticMoving = true;
+    				controls.dynamicDampingFactor = 0.3;
+
+    				controls.keys = [ 65, 83, 68 ];
+
+                    // need to change
+    				controls.addEventListener( 'change', render );
+
+                    //////////////////////////
+                    // 3D environment
+                    //////////////////////////
+
+                    //This group will hold our city objects for easier handling
+                    group = new THREE.Object3D();
+                    group.position.y = 50;
+                    group.position.z = 0;
+                    scene.add(group);
+
+                    //This group will hold all geometries
+                    groupGeometry = new THREE.Geometry();
+                    log("initiation done");
+                    buildShape(); //Convert geojson geometries into 3D shapes
+
+                    //////////////////////////
+                    // User objects
+                    //////////////////////////
+
+                    // add a reference object
+                    var ref = new THREE.BoxGeometry(4, 4, 4);
+                    var refMat = new THREE.MeshLambertMaterial({color: 0xff0000});
+                    var refMesh = new THREE.Mesh(ref, refMat);
+                    refMesh.name = "reference";
+                    refMesh.position.set(35,0,-85);
+                    scene.add(refMesh);
+
+                    // add grid helper
+                    // var gridHelper = new THREE.GridHelper( 100, 2 );
+                    // scene.add( gridHelper );
+
+    				// construct scene and player objects
+                    spawnCurrUsers();
+
+                    container.append( renderer.domElement );
+
+                    // render();
+                }
+
+                //Main Shape-Building Function
+                function buildShape() {
+
+                    //Push all Lat/Lng coordinates into 2 Arrays
+                    var features = json.features;
+                    // log(features);
+                    var master = [];
+                    features.forEach(function (ele) {
+                        if(ele.geometry==null){
+                        }else{
+                        var coord = ele.geometry.coordinates[0]; // [[x1,y1],[x2,y2]]
+                        master = master.concat(coord);
+                        }
+                    });
+                    var latAll = master.map(function (d) {
+                        return d[0];
+                    });
+                    var lngAll = master.map(function (d) {
+                        return d[1];
+                    });
+
+                    //Check and Get coordinates from GEOJSON
+                    log("buildShape (" + shapeCount + "/" + json.features.length + ")");
+                    if (shapeCount < json.features.length) {
+                        var shapeSession = 0;
+                        for (var s = shapeCount; s < json.features.length && shapeSession < subset_size; s++) {
+                            shapeSession++;
+                            shapeCount++;
+                            var good = true;
+                            var points = [];
+
+                            //Check if the geometry has at least two coordinates or if it has no contents
+                            if (json.features[s].geometry == null || json.features[s].geometry.coordinates.length<1 || json.features[s].geometry.coordinates[0]<1 || json.features[s].geometry.coordinates.length>1) {
+                                good = false;
+                            } else {
+                                //Check if there is lat,lng coordinates values
+                                if (json.features[s].geometry.coordinates.length < 1 ||  json.features[s].geometry.coordinates[0] < 1) {
+                                    good = false;
+                                } else {
+
+                                    var Lat_max_neg;
+                                    var Lng_max_neg;
+                                    for (var i = 0; i < json.features[s].geometry.coordinates[0].length; i++) {
+
+                                        //Push geometry if all coordinate values are positive
+                                        if (json.features[s].geometry.coordinates[0][i][0] && json.features[s].geometry.coordinates[0][i][1]) {
+                                            points.push(new THREE.Vector2(translateLat(json.features[s].geometry.coordinates[0][i][0], latAll), translateLng(json.features[s].geometry.coordinates[0][i][1], lngAll)));
+
+                                                            if(logData_Yes_No == true){
+                                                            logData(s, i, latAll, lngAll);
+                                                            }
+
+                                        } else {
+                                            good = false;
+                                        }
+                                    }
+                                }
+                            }
+
+                            //If the geometry is safe, continue
+                            if (good) {
+
+                                //Calculate the height of the current geometry for extrusion
+                                var h = heightFn(json.features[s].properties[heightAttr]);
+                                if (isNaN(parseFloat(json.features[s].properties[heightAttr]))) {
+                                    if (fast) {
+                                        good = false;
+                                    }
+                                    h = 0;
+                                }
+
+                                if (!h ||  h < 0) {
+                                    if (fast) {
+                                        good = false;
+                                    }
+                                    h = 0;
+                                }
+
+                                if (h > max) {
+                                    h = max;
+                                }
+
+                                //Remove all objects that have no height information for faster rendering
+                                if (h == 0 && fast) {
+                                    good = false;
+                                }
+                            }
+
+                            //If the geometry is still safe, continue
+                            if (good) {
+
+                                //Calculate the third dimension
+                                var z = ((h / max) * z_max);
+                                if (!z ||  z < 1) {
+                                    z = 0;
+                                }
+
+                                //Calculate the color of the object
+                                //In this sample code we use a blue to red range to visualize the height of the object (blue short to red tall)
+                                var red = Math.round((h / max) * 255.0);
+                                var blue = Math.round(255.0 - (h / max) * 255.0);
+                                var color = new THREE.Color("rgb(" + red + ",0," + blue + ")");
+
+                                addShape(new THREE.Shape(points), z * z_rel, color, 0, 50, 0, r, 0, 0, 1);
+                            }
+                        }
+
+                        //If we have more geometries to add restart the whole loop
+                        setTimeout(function () {
+                            buildShape();
+                        }, 100);
+                    } else {
+
+                        //We are done building our geometry
+                        log("Geometry Done");
+
+                        //Initiate the shader
+
+                        var shaderMaterial = new THREE.ShaderMaterial({
+                            attributes: {},
+                            uniforms: {},
+                            vertexShader: THREETUT.Shaders.Lit.vertex,
+                            fragmentShader: THREETUT.Shaders.Lit.fragment,
+                            side: THREE.FrontSide
+                        });
+
+
+                        //Initiate Material
+
+                        var materials = [
+                			new THREE.MeshLambertMaterial({
+                                vertexColors: THREE.VertexColors,
+                //                color: "rgb(0.2,0.2,0.2)",
+                //                ambient: "rgb(0.2,0.2,0.2)",
+                                color: "rgb(10.9,10.9,10.9)",
+                                ambient: "rgb(10.9,10.9,10.9)",
+                                shininess: 1,
+                                lights: true
+                            }),
+                			new THREE.MeshLambertMaterial({
+                                vertexColors: THREE.VertexColors,
+                                color: "rgb(0.5,0.5,0.5)",
+                                ambient: "rgb(0.5,0.5,0.5)",
+                                shininess: 1,
+                                lights: true
+                            })
+                		];
+
+                        var material = new THREE.MeshFaceMaterial(materials);
+
+
+                        //Create a mesh from the geometry
+
+                        mesh = new THREE.Mesh(groupGeometry, material);
+
+                        //mesh.position.set(offset_x * 3, offset_y * 3, offset_z * 3);
+                        mesh.rotation.set(r, 0, 0);
+                        mesh.scale.set(scale_factor * scale_x, scale_factor * scale_y, 0);
+                        mesh.castShadow = true;
+                        mesh.receiveShadow = true;
+
+                        scene.add(mesh);
+
+
+                        //Too make it a little more fancy, add a directional light
+
+                        var directionalLight = new THREE.DirectionalLight(0xeeeeee, 1);
+                        directionalLight.position.set(0, 400, 200);
+                        directionalLight.target = mesh;
+                        directionalLight.castShadow = true;
+                        directionalLight.shadowDarkness = 0.5;
+                        scene.add(directionalLight);
+
+
+                        //Now add the renderer to the DOM
+                        // document.body.appendChild(renderer.domElement);
+
+
+                        //And start animating it
+                        log("animate");
+
+                        animate();
+
+                        //Recalculate if window is resized
+                        // window.addEventListener( 'resize', onWindowResize, false );
+                    }
+                }
+
+                //Adding geometries to group
+
+                function addShape(shape, extrude, color, x, y, z, rx, ry, rz, s) {
+
+                    //Extrusion settings
+                    var extrudeSettings = {
+                        amount: extrude * 50,
+                        steps: 1,
+                        material: 0,
+                        extrudeMaterial: 1,
+                        bevelEnabled: false
+                    };
+
+                    //Create the geometry
+                    var geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+
+                    //Set the color for the object
+                    for (var f = 0; f < geometry.faces.length; f++) {
+                        geometry.faces[f].color.setRGB(color.r, color.g, color.b);
+                    }
+
+                    //Have a big amount of geometries will slow down THREE.js
+                    //Instead we merge all geometries into one geometry
+                    groupGeometry.merge(geometry, geometry.matrix);
+
+                }
+
+                function animate() {
+                    //Animate at 30fs framerate
+                    setTimeout(function () {
+                        requestAnimationFrame(animate);
+                    }, 1000 / 30);
+
+                    //Animate the height of the objections
+                    if (animateHeight) {
+                        heightScaler += 0.001;
+                    }
+
+                    if (mesh) {
+                        mesh.scale.set(scale_factor * scale_x, scale_factor * scale_y, heightScaler);
+                    }
+
+    				// requestAnimationFrame( animate );
+
+                    render();
+                    controls.update();
+    			}
+
+    			function render() {
+    				renderer.render( scene, camera );
+    			}
+
+                function spawnCurrUsers() {
+                    for (var key in users) {
+                        if (users.hasOwnProperty(key)) {
+                            var userObj = users[key];
+                            if (!jQuery.isEmptyObject(userObj) &&
+                                userObj.uuid &&
+                                !jQuery.isEmptyObject(userObj.geoloc)) {
+                                spawnNewUser(userObj.uuid, userObj.geoloc);
+                            } else {
+                                spawnNewUser(userObj.uuid, {});
+                            }
+                        }
+                    }
+                }
+
+                // takes a user id and create a new 3D object
+                function spawnNewUser(uuid, geoloc) {
+                    // var sampleGeo = new THREE.SphereBufferGeometry( 2, 8, 6 );
+
+                    var sampleGeo = new THREE.SphereGeometry( 2, 8, 6 );
+                    // sampleGeo.translate(x,0,z);
+                    var sampleMat = new THREE.MeshBasicMaterial( { color: Math.random()*0xffffff} );
+                    var sampleMesh = new THREE.Mesh( sampleGeo, sampleMat );
+
+                    sampleMesh.name = uuid;
+
+                    if (!jQuery.isEmptyObject(geoloc)) {
+                        var x = convertCoord(userObj.geoloc.lat);
+                        var z = convertCoord(userObj.geoloc.lng);
+                        sampleMesh.position.set(x,0,z);
+                    }
+
+                    // keep track of the global geometry list
+                    // userGeometries[sampleMesh.name] = sampleMesh;
+
+                    scene.add( sampleMesh );
+                }
+
+                function refreshGeolocation() {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(success, function() {
+                            handleLocationError(true);
+                        }, options);
+                    } else {
+                        // Browser doesn't support Geolocation
+                        handleLocationError(false);
+                    }
+                }
+
+                function success(position) {
+                    var pos = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+
+                    // update the geolocation of the current user
+                    updatePosition({
+                        uuid: currUuid,
+                        geoloc: pos
+                    });
+
+                    // publish the geolocation of the current user for other clients
+                    publishPosition({
+                        uuid: currUuid,
+                        geoloc: pos
+                    });
+
+                    // console.log("Your current loc: " + pos.lat + " , " + pos.lng);
+                }
+
+                function handleLocationError(browserHasGeolocation) {
+                    console.log(browserHasGeolocation ?
+                        'Error: The Geolocation service failed.' :
+                        'Error: Your browser doesn\'t support geolocation.'
+                    );
+                }
+
+                function updatePosition(data) {
+                    if (users.hasOwnProperty(data.uuid)) {
+                        var userObj = users[data.uuid];
+                        userObj.geoloc = data.geoloc;
+
+                        var x = convertCoord(userObj.geoloc.lat);
+                        var z = convertCoord(userObj.geoloc.lng);
+
+                        // update 3D object position
+                        var target3DObj = scene.getObjectByName(userObj.uuid);
+                        if (target3DObj) {
+                            target3DObj.position.set(x, 0, z);
+                        }
+                    }
+                }
+
+                function publishPosition(data) {
+                    pubnub.publish({
+                        channel: MR_CHANNEL,
+                        message: data
+                    });
+                }
+
+                function initializeUsers(list) {
+                    if (list.length > 0) {
+                        for (var i=0; i < list.length; i++) {
+                            users[list[i]['uuid']] = new User(list[i]['uuid'], {}, {});
+                        }
+                    } else {
+                        console.log("No users is connected...")
+                    }
+                }
+
+                function updateUsers(presence) {
+                    if (presence) {
+                        var newUuid = presence.uuid;
+                        // if another user joins
+                        if ((presence.action === "join") && (newUuid !== currUuid)) {
+                            // update gloal user list
+                            users[newUuid] = new User(newUuid, {}, {});
+
+                            spawnNewUser(newUuid, {});
+                        }
+                        // if a user leaves
+                        else if (presence.action === "timeout") {
+                            delete users[newUuid]
+                            // delete userGeometries[newUuid]
+                            // remove scene object
+                            scene.remove(scene.getObjectByName(newUuid));
+                        }
+
+                        // $("#numUser").html(presence.occupancy);
+                    }
+                }
+
+                //////////////////////////
+                // Utilities
+                //////////////////////////
+                /*
+                Create a unique user id,
+                Copy from https://www.pubnub.com/docs/javascript/api-reference-sdk-v4#uuid
+                */
+                function generateUUID() {
+                    var d = new Date().getTime();
+                    var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                        var r = (d + Math.random()*16)%16 | 0;
+                        d = Math.floor(d/16);
+                        return (c=='x' ? r : (r&0x3|0x8)).toString(16);
+                    });
+                    return uuid;
+                }
+
+                /*
+                    Convert a geo coordinate to a number that can be used by
+                    the threejs coordinate system
+                */
+                function convertCoord(val) {
+                    // return Math.floor(val/10.0);
+                    var result = 0;
+                    var strDeci = String(val % 1);
+
+                    if (val >=0) {
+                        var sixth = strDeci.charAt(7);
+                        var seventh = strDeci.charAt(8);
+                        var res = sixth + seventh;
+                        result = Number(res);
+                    } else {
+                        var sixth = strDeci.charAt(6);
+                        var seventh = strDeci.charAt(7);
+                        var res = sixth + seventh;
+                        result = Number(res);
+                    }
+                    return result;
+                }
+
+                /*
+                    The system doesn't really have a spatial projection
+                    structure, so we simply translate the latitude/longitude
+                    values into simple x/y coordinates
+                */
+				// function translateLat( lat ) {
+				// 	if (!lat) lat = 0
+				// 	return (lat-13.40)*100;
+				// }
+                //
+                // function translateLng( lng ) {
+				// 	if (!lng) lng = 0
+				// 	return (lng-52.54)*100;
+				// }
+
+                // Modify JSON Coordinate Values
+
+                function translateLat(lat, latAll) {
+                    if (!lat) lat = 0;
+                    lat = (lat - math.mean(latAll))*1000;
+                    return lat;
+                    ////Tests
+                    //return map_range(lat, -90, 90, -10, 10)
+                    //return (lat - 13.40) * 1000;
+                }
+
+                function translateLng(lng, lngAll) {
+                	if (!lng) lng = 0;
+                    lng = ((lng) - math.mean(lngAll))*1000;
+                    return lng;
+                    //lng = map_range(lng, )
+                    //return map_range(lng, -180, 180, -20, 20)
+                    //return (lng - 52.54) * 100;
+                }
+
+                function map_range(value, low1, high1, low2, high2) {
+                    return (value - low1) / (high1 - low1) * (high2 - low2) + low2;
+                }
+
+                //// Log Functions ////
+                function log(m) {
+                    if (log) console.log(m);
+                }
+
+                function logData(featureCount, LatLngCount, latAll, lngAll) {
+                    // Log featureCountGEOJSON + CoordinateArray.length + latitude, longitude, & converted values
+                    log(featureCount+" "+json.features[featureCount].geometry.coordinates.length+" lat(" + json.features[featureCount].geometry.coordinates[0][LatLngCount][0] + ") lng(" + json.features[featureCount].geometry.coordinates[0][LatLngCount][1] + ") meanLat(" +
+                        math.mean(latAll) + ") meanLng(" + math.mean(lngAll) + ") trsLat(" +
+                        translateLat(json.features[featureCount].geometry.coordinates[0][LatLngCount][0], latAll) + ") trsLng(" + translateLng(json.features[featureCount].geometry.coordinates[0][LatLngCount][1], lngAll) + ")"
+                    );
+                }
+            }
+        </script>
+    </body>
+</html>
