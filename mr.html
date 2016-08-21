@@ -217,8 +217,8 @@
                     camera = new THREE.PerspectiveCamera( 45, ww / wh, 0.1, 10000 );
                     // place camera up and looking down
                     camera.position.set(0,100,400);
-                    camera.up = new THREE.Vector3(0,0,0);
-                    camera.lookAt(new THREE.Vector3(0,0,0));
+                    // camera.up = new THREE.Vector3(0,0,0);
+                    // camera.lookAt(new THREE.Vector3(0,0,0));
 
                     // city model bird's eye camera visew
                     // camera = new THREE.PerspectiveCamera(600, (width / height), 1, 20000);
@@ -311,7 +311,7 @@
 
                     container.append( renderer.domElement );
 
-                    // render();
+                    render();
                 }
 
                 //Main Shape-Building Function
