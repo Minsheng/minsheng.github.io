@@ -2,7 +2,7 @@
 <html>
     <head>
         <meta charset="utf-8">
-        <title>Test presence</title>
+        <title>Real Time Mixed Reality</title>
         <style>
             body {
             	font-family: Monospace;
@@ -25,7 +25,6 @@
         <div id="canvas"></div>
 		<script type="text/javascript" src="js/jquery-3.1.0.min.js"></script>
         <script type="text/javascript" src="js/three-r70.min.js"></script>
-        <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r76/three.min.js" charset="utf-8"></script> -->
         <script type="text/javascript" src="js/TrackballControls.js"></script>
         <script type="text/javascript" src="js/Detector.js"></script>
         <script type="text/javascript" src="js/shader.js"></script>
@@ -61,21 +60,30 @@
                 }
             }
 
-            var users = {};
-            var currUuid = '';
-
             // pubub channel
             const MR_CHANNEL = 'mr-demo';
 
             // the interval to request geolocation data
-            const GEO_INTERVAL = 5 *1000;
+            const GEO_INTERVAL = 1000;
 
             // geolocation config options
-            const options = {
+            const GEO_OPT = {
                 timeout: (2 * 1000),
                 maximumAge: 0,
                 enableHighAccuracy: true
             };
+
+            // Set as True if you want to see Data Calculation Logs
+            const IS_LOG_DATA_ON = false;
+
+            // For console log messages
+			const IS_LOG_ON = true;
+
+            // determines the duration a user can stay in the channel
+            const USER_TIMEOUT = 100;
+
+            var users = {};
+            var currUuid = '';
 
             // configs for bulding 3D city model
             /*
@@ -111,21 +119,13 @@
 
             // for Threejs
             var userGeometries = {};
-            var renderer;
-            var scene, camera, controls, container, light;
-
+            var scene, camera, renderer, controls, container, light;
             var json, mesh, group, groupGeometry;
 
             // All zero or false height values will be ignored
             var fast = false;
             var ww = window.innerWidth;
             var wh = window.innerHeight;
-
-            // Set as True if you want to see Data Calculation Logs
-            var logData_Yes_No = false;
-
-            // For console log messages
-			var log = true;
 
             function justRunFam() {
                 if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
@@ -142,7 +142,7 @@
                     ssl: true,
                     uuid: currUuid,
                     heartbeatInterval: 5,
-                    presenceTimeout: 60
+                    presenceTimeout: USER_TIMEOUT
                 });
 
                 pubnub.subscribe({
@@ -159,8 +159,7 @@
                     },
                     function (status, response) {
                         // handle status, response
-                        console.log("Here now:");
-                        console.log(response);
+                        log(response);
 
                         if (response.channels[MR_CHANNEL]) {
                             var userList = response['channels'][MR_CHANNEL]['occupants'];
@@ -192,11 +191,15 @@
                             !jQuery.isEmptyObject(data.geoloc)) {
 
                             // update geolocation only for other users
-                            if (data.uuid !== currUuid) updatePosition(data);
+                            if (data.uuid !== currUuid) {
+                                updatePosition(data);
+                                animate();
+                            }
                         }
                     },
                     presence: function(e) {
                         updateUsers(e);
+                        animate();
                     }
                 });
 
@@ -204,7 +207,6 @@
                 // Get geolocation
                 //////////////////////////
                 setInterval(function(){
-                    animate();
                     refreshGeolocation();
                 }, GEO_INTERVAL);
 
@@ -226,7 +228,7 @@
                     // camera.up = new THREE.Vector3(0,0,-1);
                     // camera.translateZ( 100 );
 
-                	scene = new THREE.Scene();
+                    scene = new THREE.Scene();
 
                     //////////////////////////
                     // Renderer setup
@@ -237,8 +239,9 @@
                         alpha: true
                     });
                     renderer.setSize( ww, wh );
+                    // renderer.setSize( ww/2, wh/2, false ); // render at a lower resolution
                     // renderer.setClearColor( 0xffffff );
-    				// renderer.setPixelRatio( window.devicePixelRatio );
+                    // renderer.setPixelRatio( window.devicePixelRatio );
                     renderer.shadowMapEnabled = true;
                     renderer.shadowMapType = THREE.PCFSoftShadowMap;
                     renderer.setViewport(0, 0, ww, wh);
@@ -262,30 +265,25 @@
                     // Camera control
                     //////////////////////////
                     controls = new THREE.TrackballControls( camera );
-
-    				controls.rotateSpeed = 1.0;
-    				controls.zoomSpeed = 1.2;
-    				controls.panSpeed = 0.8;
-
+                    controls.rotateSpeed = 1.0;
+                    controls.zoomSpeed = 1.2;
+                    controls.panSpeed = 0.8;
                     controls.staticMoving = true;
-    				controls.dynamicDampingFactor = 0.3;
-
-    				controls.keys = [ 65, 83, 68 ];
-
-                    // need to change
-    				controls.addEventListener( 'change', render );
+                    controls.dynamicDampingFactor = 0.3;
+                    controls.keys = [ 65, 83, 68 ];
+                    controls.addEventListener( 'change', render );
 
                     //////////////////////////
                     // 3D environment
                     //////////////////////////
 
-                    //This group will hold our city objects for easier handling
+                    // This group will hold our city objects for easier handling
                     group = new THREE.Object3D();
                     group.position.y = 50;
                     group.position.z = 0;
                     scene.add(group);
 
-                    //This group will hold all geometries
+                    // This group will hold all geometries
                     groupGeometry = new THREE.Geometry();
                     log("initiation done");
                     buildShape(); //Convert geojson geometries into 3D shapes
@@ -295,42 +293,43 @@
                     //////////////////////////
 
                     // add a reference object
-                    var ref = new THREE.BoxGeometry(4, 4, 4);
-                    var refMat = new THREE.MeshLambertMaterial({color: 0xff0000});
-                    var refMesh = new THREE.Mesh(ref, refMat);
-                    refMesh.name = "reference";
-                    refMesh.position.set(35,0,-85);
-                    scene.add(refMesh);
+                    // var ref = new THREE.BoxGeometry(4, 4, 4);
+                    // var refMat = new THREE.MeshLambertMaterial({color: 0xff0000});
+                    // var refMesh = new THREE.Mesh(ref, refMat);
+                    // refMesh.name = "reference";
+                    // refMesh.position.set(35,0,0);
+                    // scene.add(refMesh);
 
                     // add grid helper
                     // var gridHelper = new THREE.GridHelper( 100, 2 );
                     // scene.add( gridHelper );
 
-    				// construct scene and player objects
+                    // construct scene and player objects
                     spawnCurrUsers();
 
                     container.append( renderer.domElement );
 
-                    render();
+                    animate();
                 }
 
                 //Main Shape-Building Function
                 function buildShape() {
-
-                    //Push all Lat/Lng coordinates into 2 Arrays
+                    //Push all Lat/Lng coordinates into two arrays
                     var features = json.features;
                     // log(features);
                     var master = [];
+
                     features.forEach(function (ele) {
-                        if(ele.geometry==null){
-                        }else{
-                        var coord = ele.geometry.coordinates[0]; // [[x1,y1],[x2,y2]]
-                        master = master.concat(coord);
+                        if (ele.geometry) {
+                            var coord = ele.geometry.coordinates[0]; // [[x1,y1],[x2,y2]]
+                            master = master.concat(coord);
                         }
                     });
+
                     var latAll = master.map(function (d) {
                         return d[0];
                     });
+
                     var lngAll = master.map(function (d) {
                         return d[1];
                     });
@@ -362,7 +361,7 @@
                                         if (json.features[s].geometry.coordinates[0][i][0] && json.features[s].geometry.coordinates[0][i][1]) {
                                             points.push(new THREE.Vector2(translateLat(json.features[s].geometry.coordinates[0][i][0], latAll), translateLng(json.features[s].geometry.coordinates[0][i][1], lngAll)));
 
-                                                            if(logData_Yes_No == true){
+                                                            if(IS_LOG_DATA_ON == true){
                                                             logData(s, i, latAll, lngAll);
                                                             }
 
@@ -544,15 +543,13 @@
                         mesh.scale.set(scale_factor * scale_x, scale_factor * scale_y, heightScaler);
                     }
 
-    				// requestAnimationFrame( animate );
-
                     render();
                     controls.update();
-    			}
+                }
 
-    			function render() {
-    				renderer.render( scene, camera );
-    			}
+                function render() {
+                    if (render) renderer.render( scene, camera );
+                }
 
                 function spawnCurrUsers() {
                     for (var key in users) {
@@ -596,7 +593,7 @@
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(success, function() {
                             handleLocationError(true);
-                        }, options);
+                        }, GEO_OPT);
                     } else {
                         // Browser doesn't support Geolocation
                         handleLocationError(false);
@@ -621,11 +618,12 @@
                         geoloc: pos
                     });
 
+                    animate();
                     // console.log("Your current loc: " + pos.lat + " , " + pos.lng);
                 }
 
                 function handleLocationError(browserHasGeolocation) {
-                    console.log(browserHasGeolocation ?
+                    log(browserHasGeolocation ?
                         'Error: The Geolocation service failed.' :
                         'Error: Your browser doesn\'t support geolocation.'
                     );
@@ -660,7 +658,7 @@
                             users[list[i]['uuid']] = new User(list[i]['uuid'], {}, {});
                         }
                     } else {
-                        console.log("No users is connected...")
+                        log("No users is connected...")
                     }
                 }
 
@@ -681,8 +679,6 @@
                             // remove scene object
                             scene.remove(scene.getObjectByName(newUuid));
                         }
-
-                        // $("#numUser").html(presence.occupancy);
                     }
                 }
 
@@ -709,37 +705,24 @@
                 */
                 function convertCoord(val) {
                     // return Math.floor(val/10.0);
-                    var result = 0;
-                    var strDeci = String(val % 1);
-
-                    if (val >=0) {
-                        var sixth = strDeci.charAt(7);
-                        var seventh = strDeci.charAt(8);
-                        var res = sixth + seventh;
-                        result = Number(res);
-                    } else {
-                        var sixth = strDeci.charAt(6);
-                        var seventh = strDeci.charAt(7);
-                        var res = sixth + seventh;
-                        result = Number(res);
-                    }
-                    return result;
+                    // var result = 0;
+                    // var strDeci = String(val % 1);
+                    //
+                    // if (val >=0) {
+                    //     var sixth = strDeci.charAt(7);
+                    //     var seventh = strDeci.charAt(8);
+                    //     var res = sixth + seventh;
+                    //     result = Number(res);
+                    // } else {
+                    //     var sixth = strDeci.charAt(6);
+                    //     var seventh = strDeci.charAt(7);
+                    //     var res = sixth + seventh;
+                    //     result = Number(res);
+                    // }
+                    //
+                    // return result;
+                    return val;
                 }
-
-                /*
-                    The system doesn't really have a spatial projection
-                    structure, so we simply translate the latitude/longitude
-                    values into simple x/y coordinates
-                */
-				// function translateLat( lat ) {
-				// 	if (!lat) lat = 0
-				// 	return (lat-13.40)*100;
-				// }
-                //
-                // function translateLng( lng ) {
-				// 	if (!lng) lng = 0
-				// 	return (lng-52.54)*100;
-				// }
 
                 // Modify JSON Coordinate Values
 
@@ -767,7 +750,7 @@
 
                 //// Log Functions ////
                 function log(m) {
-                    if (log) console.log(m);
+                    if (IS_LOG_ON) console.log(m);
                 }
 
                 function logData(featureCount, LatLngCount, latAll, lngAll) {
