@@ -10,15 +10,6 @@
             	margin: 0px;
             	overflow: hidden;
             }
-
-            #info {
-                position: fixed;
-                top: 0px;
-                left: 0px;
-                cursor: pointer;
-                opacity: 0.9;
-                z-index: 10000;
-            }
         </style>
     </head>
     <body onload="justRunFam()">
@@ -110,7 +101,7 @@
             const OCADU_MDL_PATH = "./models/richmond.geojson";
             const WATERFRONT_MDL_PATH = "./models/waterfront.geojson";
 
-            var jsonFile = OCADU_MDL_PATH,
+            var jsonFile = DOWNTOWN_MDL_PATH,
 				useHeight = true,
 				heightAttr = "EleZ",
 				heightFn = function(val) {
@@ -760,6 +751,41 @@
                         }
                     }
                 }
+
+                // function createInfoSelection() {
+                //     var $info = $('<div></div>');
+                //     $info.css({
+                //         "position": "fixed",
+                //         "top": "0px",
+                //         "left": "0px",
+                //         "opacity": 0.9,
+                //         "z-index": 10000
+                //     });
+                //
+                //     var dropdown = 'City model: <select onchange="swapModel()" id="selectedModel"><option>Downtown</option><option>OCAD</option><option>Waterfront</option></select>';
+                //     $info.html(dropdown);
+                //
+                //     return $info;
+                // }
+                //
+                // function swapModel() {
+                //     var selected = $("#selectedModel").val;
+                //
+                //     if (selected === "Downtown") {
+                //         jsonFile = DOWNTOWN_MDL_PATH;
+                //     } else if (selected === "OCAD") {
+                //         jsonFile = OCADU_MDL_PATH;
+                //     } else { // Waterfront
+                //         jsonFile = WATERFRONT_MDL_PATH;
+                //     }
+                //
+                //     $.getJSON(jsonFile, function (data) {
+                //         log("Loading of map model completed");
+                //         json = data;
+                //
+                //         initScene();
+                //     });
+                // }
 
                 //////////////////////////
                 // Utilities
