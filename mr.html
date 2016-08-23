@@ -53,10 +53,9 @@
 
             // User data structure
             class User {
-                constructor(uuid, geoloc, position) {
+                constructor(uuid, geoloc) {
                     this.uuid = uuid;
                     this.geoloc = geoloc;
-                    this.position = position;
                 }
             }
 
@@ -64,7 +63,7 @@
             const MR_CHANNEL = 'mr-demo';
 
             // the interval to request geolocation data
-            const GEO_INTERVAL = 2.5 * 1000; // seconds * milliseconds
+            const GEO_INTERVAL = .25 * 1000; // seconds * milliseconds
 
             // geolocation config options
             const GEO_OPT = {
@@ -80,7 +79,23 @@
 			const IS_LOG_ON = false;
 
             // determines the duration a user can stay in the channel
-            const USER_TIMEOUT = 120; // 3 minutes
+            const USER_TIMEOUT = 120;
+
+            const USER_OBJ_RADIUS = 4; // determines the size of a user object
+            const USER_OBJ_HEIGHT = 100; // initial postion in vertical axis
+
+            const FPS = 40; // frame rate per second when animated
+
+            /* Modes for generating object positions.
+            Because the changes in geo coordinates are too tiny for each user,
+            we need to translate the value based on the mean of the coordinates
+            of the map elements and scale them by taking the nth and (n+1)th
+            digits after decimal point in order to have significant changes
+            in scene positions
+             */
+            const TRANSLATE_MODE = 1;
+            const RAW_MODE = 2;
+            const SCALED_MODE = 3;
 
             var users = {};
             var currUuid = '';
@@ -91,7 +106,11 @@
 					if useHeight = true then the height is calculated from the heightAttr value in the geoJson file
 					if not the height of each object will be 0
 			*/
-            var jsonFile = "./models/Davidson_House_remix.geojson",
+            const DOWNTOWN_MDL_PATH = "./models/dt.geojson";
+            const OCADU_MDL_PATH = "./models/richmond.geojson";
+            const WATERFRONT_MDL_PATH = "./models/waterfront.geojson";
+
+            var jsonFile = OCADU_MDL_PATH,
 				useHeight = true,
 				heightAttr = "EleZ",
 				heightFn = function(val) {
@@ -335,8 +354,6 @@
                     }
                     });
 
-
-
                     var lngAll = master.map(function (d) {
                         return d[0];
                     });
@@ -345,6 +362,7 @@
                         return d[1];
                     });
 
+                    // Calculate the mean values
                     LNG_MEAN = math.mean(lngAll);
                     LAT_MEAN = math.mean(latAll);
 
@@ -513,7 +531,7 @@
                         //And start animating it
                         log("animate");
 
-                        animate();
+                        // animate();
 
                         //Recalculate if window is resized
                         // window.addEventListener( 'resize', onWindowResize, false );
@@ -550,7 +568,7 @@
                     //Animate at 30fs framerate
                     setTimeout(function () {
                         requestAnimationFrame(animate);
-                    }, 1000 / 30);
+                    }, 1000 / FPS);
 
                     //Animate the height of the objections
                     if (animateHeight) {
@@ -562,48 +580,54 @@
                     }
 
                     render();
-                    controls.update();
+                    if (controls) controls.update();
                 }
 
                 function render() {
-                    if (render) renderer.render( scene, camera );
+                    if (renderer) renderer.render( scene, camera );
                 }
 
+                // Spawn users into the scene
                 function spawnCurrUsers() {
                     for (var key in users) {
                         if (users.hasOwnProperty(key)) {
                             var userObj = users[key];
-                            if (!jQuery.isEmptyObject(userObj) &&
-                                userObj.uuid &&
-                                !jQuery.isEmptyObject(userObj.geoloc)) {
-                                spawnNewUser(userObj.uuid, userObj.geoloc);
-                            } else {
-                                spawnNewUser(userObj.uuid, {});
+
+                            if (!jQuery.isEmptyObject(userObj)) {
+                                if (userObj.uuid) {
+                                    if (!jQuery.isEmptyObject(userObj.geoloc)) {
+                                        spawnNewUser(userObj.uuid, userObj.geoloc);
+                                    } else {
+                                        spawnNewUser(userObj.uuid, {});
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
-                // takes a user id and create a new 3D object
+                // Takes a user id and create a new 3D object
                 function spawnNewUser(uuid, geoloc) {
-                    // var sampleGeo = new THREE.SphereBufferGeometry( 2, 8, 6 );
+                    if (uuid) {
+                        var sampleGeo = new THREE.SphereGeometry( USER_OBJ_RADIUS, 8, 6 );
+                        var sampleMat = new THREE.MeshBasicMaterial( { color: Math.random()*0xffffff} );
+                        var sampleMesh = new THREE.Mesh( sampleGeo, sampleMat );
 
-                    var sampleGeo = new THREE.SphereGeometry( 4, 8, 6 );
-                    // sampleGeo.translate(x,0,z);
-                    var sampleMat = new THREE.MeshBasicMaterial( { color: Math.random()*0xffffff} );
-                    var sampleMesh = new THREE.Mesh( sampleGeo, sampleMat );
+                        sampleMesh.name = uuid;
 
-                    sampleMesh.name = uuid;
+                        // only set the x,y position if previous position exists
+                        if (!jQuery.isEmptyObject(geoloc)) {
+                            var x = userObj.geoloc.lat;
+                            var y = userObj.geoloc.lng;
+                            sampleMesh.position.set(x,y,USER_OBJ_HEIGHT);
+                        }
 
-                    if (!jQuery.isEmptyObject(geoloc)) {
-                        var x = userObj.geoloc.lat;
-                        var z = userObj.geoloc.lng;
-                        sampleMesh.position.set(x,z,40);
+                        sampleMesh.position.set(0,0,USER_OBJ_HEIGHT);
+
+                        if (sampleMesh) {
+                            scene.add( sampleMesh );
+                        }
                     }
-
-                    // sampleMesh.position.set(4.7,0,10.9);
-
-                    scene.add( sampleMesh );
                 }
 
                 function refreshGeolocation() {
@@ -617,28 +641,35 @@
                     }
                 }
 
+                /*
+                    After successfully retrieving a coordinate,
+                    update the position of the current user in the current browser
+                    as well as in other users' browsers by publishing the geolocation data
+                */
                 function success(position) {
                     log("Getting geo location: ");
                     log("Current coordinate before translation: " + position.coords.longitude + "," + position.coords.latitude);
 
-                    var translatedLng = translateLng(position.coords.longitude, LNG_MEAN);
+                    mode = SCALED_MODE;
 
-                    var translatedLat = translateLat(position.coords.latitude, LAT_MEAN);
+                    var lat = position.coords.latitude;
+                    var lng = position.coords.longitude;
 
-                    // var scaledLng = convertCoord(translatedLng, 2, 3);
-                    // var scaledLat = convertCoord(translatedLat, 2, 3);
+                    var translatedLng = translateLng(lng, LNG_MEAN);
+                    var translatedLat = translateLat(lat, LAT_MEAN);
 
-                    var pos = {
-                        lng: translatedLng,
-                        lat: translatedLat
-                    };
+                    var pos = {};
 
-                    log("after translation: " + pos.lng + "," + pos.lat);
-
-                    // var pos = {
-                    //     lat: position.coords.latitude,
-                    //     lng: position.coords.longitude
-                    // };
+                    if (mode === RAW_MODE) {
+                        pos.lat = lat;
+                        pos.lng = lng;
+                    } else if (mode === TRANSLATE_MODE) {
+                        pos.lat = translatedLat;
+                        pos.lng = translatedLng;
+                    } else if (mode === SCALED_MODE) {
+                        pos.lat = convertCoord(translatedLat, 2, 3);
+                        pos.lng = convertCoord(translatedLng, 2, 3);
+                    }
 
                     // update the geolocation of the current user
                     updatePosition({
@@ -663,26 +694,28 @@
                     );
                 }
 
+                /*
+                    Update the position of a user object
+                */
                 function updatePosition(data) {
                     if (users.hasOwnProperty(data.uuid)) {
                         var userObj = users[data.uuid];
                         userObj.geoloc = data.geoloc;
-
-                        // var x = translateLat(userObj.geoloc.lat, LAT_MEAN);
-                        // var z = translateLng(userObj.geoloc.lng, LNG_MEAN);
 
                         var x = userObj.geoloc.lat;
                         var y = userObj.geoloc.lng;
 
                         // update 3D object position
                         var target3DObj = scene.getObjectByName(userObj.uuid);
+
                         if (target3DObj) {
-                            target3DObj.position.set(x, y, 40);
-                            animate();
+                            target3DObj.position.set(x, y, USER_OBJ_HEIGHT);
+                            // animate();
                         }
                     }
                 }
 
+                // broadcast geolocation data in a public channel
                 function publishPosition(data) {
                     pubnub.publish({
                         channel: MR_CHANNEL,
@@ -690,23 +723,32 @@
                     });
                 }
 
+                // initializes user objects
                 function initializeUsers(list) {
                     if (list.length > 0) {
                         for (var i=0; i < list.length; i++) {
-                            users[list[i]['uuid']] = new User(list[i]['uuid'], {}, {});
+                            users[list[i]['uuid']] = new User(list[i]['uuid'], {});
                         }
                     } else {
                         log("No users is connected...")
                     }
                 }
 
+                /*
+                    When a new user joins, create a new user object with the
+                    uuid and add it to the master list; spawn the user in the
+                    scene.
+
+                    When a user timesout, remove the user from the master list;
+                    remove the user from the scene.
+                */
                 function updateUsers(presence) {
                     if (presence) {
                         var newUuid = presence.uuid;
                         // if another user joins
                         if ((presence.action === "join")) {
                             // update gloal user list
-                            users[newUuid] = new User(newUuid, {}, {});
+                            users[newUuid] = new User(newUuid, {});
 
                             spawnNewUser(newUuid, {});
                         }
@@ -767,9 +809,6 @@
                     if (!lat) lat = 0;
                     if (latMean) lat = (lat - latMean)*1000;
                     return lat;
-                    ////Tests
-                    //return map_range(lat, -90, 90, -10, 10)
-                    //return (lat - 13.40) * 1000;
                 }
 
                 // Calculate a translated longitude based on the mean value of
@@ -778,9 +817,6 @@
                 	if (!lng) lng = 0;
                     if (lngMean) lng = ((lng) - lngMean)*1000;
                     return lng;
-                    //lng = map_range(lng, )
-                    //return map_range(lng, -180, 180, -20, 20)
-                    //return (lng - 52.54) * 100;
                 }
 
                 function map_range(value, low1, high1, low2, high2) {
