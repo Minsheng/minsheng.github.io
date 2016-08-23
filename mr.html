@@ -64,7 +64,7 @@
             const MR_CHANNEL = 'mr-demo';
 
             // the interval to request geolocation data
-            const GEO_INTERVAL = 1000;
+            const GEO_INTERVAL = 2.5 * 1000; // seconds * milliseconds
 
             // geolocation config options
             const GEO_OPT = {
@@ -77,10 +77,10 @@
             const IS_LOG_DATA_ON = false;
 
             // For console log messages
-			const IS_LOG_ON = true;
+			const IS_LOG_ON = false;
 
             // determines the duration a user can stay in the channel
-            const USER_TIMEOUT = 100;
+            const USER_TIMEOUT = 120; // 3 minutes
 
             var users = {};
             var currUuid = '';
@@ -91,9 +91,9 @@
 					if useHeight = true then the height is calculated from the heightAttr value in the geoJson file
 					if not the height of each object will be 0
 			*/
-            var jsonFile = "./waterfront.geojson",
+            var jsonFile = "./models/Davidson_House_remix.geojson",
 				useHeight = true,
-				heightAttr = "cartodb_id",
+				heightAttr = "EleZ",
 				heightFn = function(val) {
                     return Math.pow(parseFloat(val), root);
                 },
@@ -111,6 +111,9 @@
 				heightScaler = 0.5,
 				animateHeight = false;
 
+            var LAT_MEAN = 0;
+            var LNG_MEAN = 0;
+
             // Due to javascripts limitations
             // we need to parse the data in subsets (5000)
             var shapeCount = 0,
@@ -118,7 +121,6 @@
                 subset_size = 5000;
 
             // for Threejs
-            var userGeometries = {};
             var scene, camera, renderer, controls, container, light;
             var json, mesh, group, groupGeometry;
 
@@ -154,8 +156,7 @@
                 pubnub.hereNow(
                     {
                         channels: [MR_CHANNEL],
-                        includeUUIDs: true,
-                        includeState: true
+                        includeUUIDs: true
                     },
                     function (status, response) {
                         // handle status, response
@@ -165,11 +166,11 @@
                             var userList = response['channels'][MR_CHANNEL]['occupants'];
                             initializeUsers(userList);
 
-                            log("start loading");
+                            log("Loading of map model starts");
 
                             // initialize 3D environment and objects
                             $.getJSON(jsonFile, function (data) {
-                                log("Loading of map model complete");
+                                log("Loading of map model completed");
                                 json = data;
 
                                 initScene();
@@ -193,13 +194,13 @@
                             // update geolocation only for other users
                             if (data.uuid !== currUuid) {
                                 updatePosition(data);
-                                animate();
+                                // animate();
                             }
                         }
                     },
                     presence: function(e) {
                         updateUsers(e);
-                        animate();
+                        // animate();
                     }
                 });
 
@@ -229,6 +230,7 @@
                     // camera.translateZ( 100 );
 
                     scene = new THREE.Scene();
+                    scene.fog = new THREE.FogExp2( 0xcccccc, 0.002 );
 
                     //////////////////////////
                     // Renderer setup
@@ -321,18 +323,30 @@
 
                     features.forEach(function (ele) {
                         if (ele.geometry) {
+                            if(ele.geometry.type === "Polygon"){
                             var coord = ele.geometry.coordinates[0]; // [[x1,y1],[x2,y2]]
                             master = master.concat(coord);
+                            log("Polygon "+master.length);
+                        } else if (ele.geometry.type === "MultiPolygon") {
+                            var coord = ele.geometry.coordinates[0][0]; // [[[x1,y1],[x2,y2]]]
+                            master = master.concat(coord);
+                            log("MultiPolygon"+master.length);
                         }
+                    }
                     });
 
-                    var latAll = master.map(function (d) {
+
+
+                    var lngAll = master.map(function (d) {
                         return d[0];
                     });
 
-                    var lngAll = master.map(function (d) {
+                    var latAll = master.map(function (d) {
                         return d[1];
                     });
+
+                    LNG_MEAN = math.mean(lngAll);
+                    LAT_MEAN = math.mean(latAll);
 
                     //Check and Get coordinates from GEOJSON
                     log("buildShape (" + shapeCount + "/" + json.features.length + ")");
@@ -344,32 +358,37 @@
                             var good = true;
                             var points = [];
 
-                            //Check if the geometry has at least two coordinates or if it has no contents
-                            if (json.features[s].geometry == null || json.features[s].geometry.coordinates.length<1 || json.features[s].geometry.coordinates[0]<1 || json.features[s].geometry.coordinates.length>1) {
-                                good = false;
-                            } else {
-                                //Check if there is lat,lng coordinates values
-                                if (json.features[s].geometry.coordinates.length < 1 ||  json.features[s].geometry.coordinates[0] < 1) {
-                                    good = false;
-                                } else {
+                            var geometry = json.features[s].geometry;
 
-                                    var Lat_max_neg;
-                                    var Lng_max_neg;
-                                    for (var i = 0; i < json.features[s].geometry.coordinates[0].length; i++) {
+                            if (geometry !== null) {
+                                var coordinates = [];
 
-                                        //Push geometry if all coordinate values are positive
-                                        if (json.features[s].geometry.coordinates[0][i][0] && json.features[s].geometry.coordinates[0][i][1]) {
-                                            points.push(new THREE.Vector2(translateLat(json.features[s].geometry.coordinates[0][i][0], latAll), translateLng(json.features[s].geometry.coordinates[0][i][1], lngAll)));
+                                if (geometry.type === "Polygon") {
+                                    coordinates = geometry.coordinates[0];
+                                } else if (geometry.type === "MultiPolygon") {
+                                    coordinates = geometry.coordinates[0][0];
+                                }
 
-                                                            if(IS_LOG_DATA_ON == true){
-                                                            logData(s, i, latAll, lngAll);
-                                                            }
-
+                                if (coordinates.length > 0) { // it has to be one nested element
+                                    for (var i = 0; i < coordinates.length; i++) {
+                                        // Push geometry if all coordinate values are positive
+                                        if (coordinates[i][0] && coordinates[i][1]) {
+                                            points.push(new THREE.Vector2(
+                                                translateLng(coordinates[i][0], LNG_MEAN),
+                                                translateLat(coordinates[i][1], LAT_MEAN)
+                                            ));
+                                            if (IS_LOG_DATA_ON) {
+                                                logData(s, i, LNG_MEAN, LAT_MEAN);
+                                            }
                                         } else {
                                             good = false;
                                         }
                                     }
+                                } else {
+                                    good = false;
                                 }
+                            } else {
+                                good = false;
                             }
 
                             //If the geometry is safe, continue
@@ -479,12 +498,12 @@
 
                         //Too make it a little more fancy, add a directional light
 
-                        var directionalLight = new THREE.DirectionalLight(0xeeeeee, 1);
-                        directionalLight.position.set(0, 400, 200);
-                        directionalLight.target = mesh;
-                        directionalLight.castShadow = true;
-                        directionalLight.shadowDarkness = 0.5;
-                        scene.add(directionalLight);
+                        // var directionalLight = new THREE.DirectionalLight(0xeeeeee, 1);
+                        // directionalLight.position.set(0, 400, 200);
+                        // directionalLight.target = mesh;
+                        // directionalLight.castShadow = true;
+                        // directionalLight.shadowDarkness = 0.5;
+                        // scene.add(directionalLight);
 
 
                         //Now add the renderer to the DOM
@@ -501,8 +520,7 @@
                     }
                 }
 
-                //Adding geometries to group
-
+                // Adding geometries to group
                 function addShape(shape, extrude, color, x, y, z, rx, ry, rz, s) {
 
                     //Extrusion settings
@@ -570,7 +588,7 @@
                 function spawnNewUser(uuid, geoloc) {
                     // var sampleGeo = new THREE.SphereBufferGeometry( 2, 8, 6 );
 
-                    var sampleGeo = new THREE.SphereGeometry( 2, 8, 6 );
+                    var sampleGeo = new THREE.SphereGeometry( 4, 8, 6 );
                     // sampleGeo.translate(x,0,z);
                     var sampleMat = new THREE.MeshBasicMaterial( { color: Math.random()*0xffffff} );
                     var sampleMesh = new THREE.Mesh( sampleGeo, sampleMat );
@@ -578,13 +596,12 @@
                     sampleMesh.name = uuid;
 
                     if (!jQuery.isEmptyObject(geoloc)) {
-                        var x = convertCoord(userObj.geoloc.lat);
-                        var z = convertCoord(userObj.geoloc.lng);
-                        sampleMesh.position.set(x,0,z);
+                        var x = userObj.geoloc.lat;
+                        var z = userObj.geoloc.lng;
+                        sampleMesh.position.set(x,z,40);
                     }
 
-                    // keep track of the global geometry list
-                    // userGeometries[sampleMesh.name] = sampleMesh;
+                    // sampleMesh.position.set(4.7,0,10.9);
 
                     scene.add( sampleMesh );
                 }
@@ -601,10 +618,27 @@
                 }
 
                 function success(position) {
+                    log("Getting geo location: ");
+                    log("Current coordinate before translation: " + position.coords.longitude + "," + position.coords.latitude);
+
+                    var translatedLng = translateLng(position.coords.longitude, LNG_MEAN);
+
+                    var translatedLat = translateLat(position.coords.latitude, LAT_MEAN);
+
+                    // var scaledLng = convertCoord(translatedLng, 2, 3);
+                    // var scaledLat = convertCoord(translatedLat, 2, 3);
+
                     var pos = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude
+                        lng: translatedLng,
+                        lat: translatedLat
                     };
+
+                    log("after translation: " + pos.lng + "," + pos.lat);
+
+                    // var pos = {
+                    //     lat: position.coords.latitude,
+                    //     lng: position.coords.longitude
+                    // };
 
                     // update the geolocation of the current user
                     updatePosition({
@@ -634,13 +668,17 @@
                         var userObj = users[data.uuid];
                         userObj.geoloc = data.geoloc;
 
-                        var x = convertCoord(userObj.geoloc.lat);
-                        var z = convertCoord(userObj.geoloc.lng);
+                        // var x = translateLat(userObj.geoloc.lat, LAT_MEAN);
+                        // var z = translateLng(userObj.geoloc.lng, LNG_MEAN);
+
+                        var x = userObj.geoloc.lat;
+                        var y = userObj.geoloc.lng;
 
                         // update 3D object position
                         var target3DObj = scene.getObjectByName(userObj.uuid);
                         if (target3DObj) {
-                            target3DObj.position.set(x, 0, z);
+                            target3DObj.position.set(x, y, 40);
+                            animate();
                         }
                     }
                 }
@@ -666,7 +704,7 @@
                     if (presence) {
                         var newUuid = presence.uuid;
                         // if another user joins
-                        if ((presence.action === "join") && (newUuid !== currUuid)) {
+                        if ((presence.action === "join")) {
                             // update gloal user list
                             users[newUuid] = new User(newUuid, {}, {});
 
@@ -675,7 +713,6 @@
                         // if a user leaves
                         else if (presence.action === "timeout") {
                             delete users[newUuid]
-                            // delete userGeometries[newUuid]
                             // remove scene object
                             scene.remove(scene.getObjectByName(newUuid));
                         }
@@ -703,41 +740,43 @@
                     Convert a geo coordinate to a number that can be used by
                     the threejs coordinate system
                 */
-                function convertCoord(val) {
-                    // return Math.floor(val/10.0);
-                    // var result = 0;
-                    // var strDeci = String(val % 1);
-                    //
-                    // if (val >=0) {
-                    //     var sixth = strDeci.charAt(7);
-                    //     var seventh = strDeci.charAt(8);
-                    //     var res = sixth + seventh;
-                    //     result = Number(res);
-                    // } else {
-                    //     var sixth = strDeci.charAt(6);
-                    //     var seventh = strDeci.charAt(7);
-                    //     var res = sixth + seventh;
-                    //     result = Number(res);
-                    // }
-                    //
-                    // return result;
-                    return val;
+                function convertCoord(val, dig1, dig2) {
+                    var result = 0;
+                    var strDeci = String(val % 1);
+
+                    if (val >=0) {
+                        var tenth = strDeci.charAt(dig1);
+                        var single = strDeci.charAt(dig2);
+                        var res = tenth + single;
+                        result = Number(res);
+                    } else {
+                        var tenth = strDeci.charAt(dig1+1);
+                        var single = strDeci.charAt(dig2+1);
+                        var res = tenth + single;
+                        result = Number(res);
+                    }
+
+                    return result;
                 }
 
                 // Modify JSON Coordinate Values
 
-                function translateLat(lat, latAll) {
+                // Calculate a translated latitude based on the mean value of
+                // all the latitude values from the map geojson file
+                function translateLat(lat, latMean) {
                     if (!lat) lat = 0;
-                    lat = (lat - math.mean(latAll))*1000;
+                    if (latMean) lat = (lat - latMean)*1000;
                     return lat;
                     ////Tests
                     //return map_range(lat, -90, 90, -10, 10)
                     //return (lat - 13.40) * 1000;
                 }
 
-                function translateLng(lng, lngAll) {
+                // Calculate a translated longitude based on the mean value of
+                // all the longitude values from the map geojson file
+                function translateLng(lng, lngMean) {
                 	if (!lng) lng = 0;
-                    lng = ((lng) - math.mean(lngAll))*1000;
+                    if (lngMean) lng = ((lng) - lngMean)*1000;
                     return lng;
                     //lng = map_range(lng, )
                     //return map_range(lng, -180, 180, -20, 20)
@@ -753,12 +792,11 @@
                     if (IS_LOG_ON) console.log(m);
                 }
 
-                function logData(featureCount, LatLngCount, latAll, lngAll) {
+                function logData(featureCount, LatLngCount, lngMean, latMean) {
                     // Log featureCountGEOJSON + CoordinateArray.length + latitude, longitude, & converted values
-                    log(featureCount+" "+json.features[featureCount].geometry.coordinates.length+" lat(" + json.features[featureCount].geometry.coordinates[0][LatLngCount][0] + ") lng(" + json.features[featureCount].geometry.coordinates[0][LatLngCount][1] + ") meanLat(" +
-                        math.mean(latAll) + ") meanLng(" + math.mean(lngAll) + ") trsLat(" +
-                        translateLat(json.features[featureCount].geometry.coordinates[0][LatLngCount][0], latAll) + ") trsLng(" + translateLng(json.features[featureCount].geometry.coordinates[0][LatLngCount][1], lngAll) + ")"
-                    );
+                    log(featureCount+" "+json.features[featureCount].geometry.coordinates.length+" lng(" + json.features[featureCount].geometry.coordinates[0][LatLngCount][0] + ") lat(" + json.features[featureCount].geometry.coordinates[0][LatLngCount][1] + ") meanLng(" +
+                        lngMean + ") meanLat(" + latMean + ") trsLng(" + translateLng(json.features[featureCount].geometry.coordinates[0][LatLngCount][0], lngMean) + ") trnsLat(" +
+                        translateLat(json.features[featureCount].geometry.coordinates[0][LatLngCount][1], latMean) + ")" );
                 }
             }
         </script>
