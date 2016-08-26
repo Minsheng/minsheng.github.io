@@ -179,7 +179,7 @@
 
                             log("Loading of map model starts");
 
-                            buildModelandScene();
+                            buildModelAndScene();
 
                             pubnub.addListener({
                                 status: function(statusEvent) {
@@ -319,6 +319,7 @@
                     animate();
                 }
 
+                // Modified library code
                 //Main Shape-Building Function
                 function buildShape() {
                     //Push all Lat/Lng coordinates into two arrays
@@ -606,9 +607,9 @@
                             var x = userObj.geoloc.lat;
                             var y = userObj.geoloc.lng;
                             sampleMesh.position.set(x,y,USER_OBJ_HEIGHT);
+                        } else {
+                            sampleMesh.position.set(0,0,USER_OBJ_HEIGHT);
                         }
-
-                        sampleMesh.position.set(0,0,USER_OBJ_HEIGHT);
 
                         if (sampleMesh) {
                             scene.add( sampleMesh );
@@ -747,7 +748,7 @@
                     }
                 }
 
-                function buildModelandScene() {
+                function buildModelAndScene() {
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(loadCityModel, function() {
                             handleLocationError(true);
@@ -864,41 +865,6 @@
                     });
                 }
 
-                // function createInfoSelection() {
-                //     var $info = $('<div></div>');
-                //     $info.css({
-                //         "position": "fixed",
-                //         "top": "0px",
-                //         "left": "0px",
-                //         "opacity": 0.9,
-                //         "z-index": 10000
-                //     });
-                //
-                //     var dropdown = 'City model: <select onchange="swapModel()" id="selectedModel"><option>Downtown</option><option>OCAD</option><option>Waterfront</option></select>';
-                //     $info.html(dropdown);
-                //
-                //     return $info;
-                // }
-                //
-                // function swapModel() {
-                //     var selected = $("#selectedModel").val;
-                //
-                //     if (selected === "Downtown") {
-                //         jsonFile = DOWNTOWN_MDL_PATH;
-                //     } else if (selected === "OCAD") {
-                //         jsonFile = OCADU_MDL_PATH;
-                //     } else { // Waterfront
-                //         jsonFile = WATERFRONT_MDL_PATH;
-                //     }
-                //
-                //     $.getJSON(jsonFile, function (data) {
-                //         log("Loading of map model completed");
-                //         json = data;
-                //
-                //         initScene();
-                //     });
-                // }
-
                 //////////////////////////
                 // Utilities
                 //////////////////////////
@@ -919,6 +885,10 @@
                 /*
                     Convert a geo coordinate to a number that can be used by
                     the threejs coordinate system
+                    dig1 and dig2 are the nth and (n+1)th digits after decimal point.
+                    when a user is walking, there are significant changes in
+                    these two digits which can be used to set the position of
+                    the user object in our virtual scene
                 */
                 function convertCoord(val, dig1, dig2) {
                     var result = 0;
