@@ -54,7 +54,7 @@
             const MR_CHANNEL = 'mr-demo';
 
             // the interval to request geolocation data
-            const GEO_INTERVAL = .25 * 1000; // seconds * milliseconds
+            const GEO_INTERVAL = 10 * 1000; // seconds * milliseconds
 
             // geolocation config options
             const GEO_OPT = {
@@ -100,8 +100,9 @@
             const DOWNTOWN_MDL_PATH = "./models/dt.geojson";
             const OCADU_MDL_PATH = "./models/richmond.geojson";
             const WATERFRONT_MDL_PATH = "./models/waterfront.geojson";
+            const MIDTOWN = "./models/Midtown_5.geojson";
 
-            var jsonFile = DOWNTOWN_MDL_PATH,
+            var jsonFile = WATERFRONT_MDL_PATH, // default
 				useHeight = true,
 				heightAttr = "EleZ",
 				heightFn = function(val) {
@@ -178,41 +179,35 @@
 
                             log("Loading of map model starts");
 
-                            // initialize 3D environment and objects
-                            $.getJSON(jsonFile, function (data) {
-                                log("Loading of map model completed");
-                                json = data;
+                            buildModelandScene();
 
-                                initScene();
+                            pubnub.addListener({
+                                status: function(statusEvent) {
+                                    if (statusEvent.category === "PNConnectedCategory") {
+                                    }
+                                },
+                                message: function(m) {
+                                    var data = m.message;
+
+                                    if (!jQuery.isEmptyObject(data) &&
+                                        data.uuid &&
+                                        !jQuery.isEmptyObject(data.geoloc)) {
+
+                                        // update geolocation only for other users
+                                        if (data.uuid !== currUuid) {
+                                            updatePosition(data);
+                                            // animate();
+                                        }
+                                    }
+                                },
+                                presence: function(e) {
+                                    updateUsers(e);
+                                    // animate();
+                                }
                             });
                         }
                     }
                 );
-
-                pubnub.addListener({
-                    status: function(statusEvent) {
-                        if (statusEvent.category === "PNConnectedCategory") {
-                        }
-                    },
-                    message: function(m) {
-                        var data = m.message;
-
-                        if (!jQuery.isEmptyObject(data) &&
-                            data.uuid &&
-                            !jQuery.isEmptyObject(data.geoloc)) {
-
-                            // update geolocation only for other users
-                            if (data.uuid !== currUuid) {
-                                updatePosition(data);
-                                // animate();
-                            }
-                        }
-                    },
-                    presence: function(e) {
-                        updateUsers(e);
-                        // animate();
-                    }
-                });
 
                 //////////////////////////
                 // Get geolocation
@@ -750,6 +745,123 @@
                             scene.remove(scene.getObjectByName(newUuid));
                         }
                     }
+                }
+
+                function buildModelandScene() {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(loadCityModel, function() {
+                            handleLocationError(true);
+                        }, GEO_OPT);
+                    } else {
+                        // Browser doesn't support Geolocation
+                        handleLocationError(false);
+                    }
+                }
+
+                // Use current user geo-coordinates to choose map model.
+                // If user is not within the geo-coordinate bounds of any map model, then use Waterfront_1.geojson as default
+                function loadCityModel(position) {
+                    var latitude = position.coords.latitude;
+                    var longitude = position.coords.longitude;
+
+                    // Waterfront
+
+                    if (longitude > -79.4001682091352 && longitude < -79.3766788232645 && latitude < 43.6473318013964 && latitude > 43.6327892037729) {
+                        jsonFile = "./models/Waterfront_1.geojson";
+                    }
+
+                    if (longitude > -79.3766788232645 && longitude < -79.3531894373938 && latitude < 43.6473318013964 && latitude > 43.6327892037729) {
+                        jsonFile = "./models/Waterfront_2.geojson";
+                    }
+
+                    if (longitude > -79.3531894373938 && longitude < -79.3297000515231 && latitude < 43.6473318013964 && latitude > 43.6327892037729) {
+                        jsonFile = "./models/Waterfront_3.geojson";
+                    }
+
+                    if (longitude > -79.3297000515231 && longitude < -79.3062106656524 && latitude < 43.6473318013964 && latitude > 43.6327892037729) {
+                        jsonFile = "./models/Waterfront_4.geojson";
+                    }
+
+                    if (longitude > -79.3062106656524 && longitude < -79.2827212797817 && latitude < 43.6473318013964 && latitude > 43.6327892037729) {
+                        jsonFile = "./models/Waterfront_5.geojson";
+                    }
+
+
+                    // South Downtown
+
+                    if (longitude > -79.4001682091352 && longitude < -79.3766788232645 && latitude < 43.6618743990199 && latitude > 43.6473318013964) {
+                        jsonFile = "./models/South_Downtown_1.geojson";
+                    }
+
+                    if (longitude > -79.3766788232645 && longitude < -79.3531894373938 && latitude < 43.6618743990199 && latitude > 43.6473318013964) {
+                        jsonFile = "./models/South_Downtown_2.geojson";
+                    }
+
+                    if (longitude > -79.3531894373938 && longitude < -79.3297000515231 && latitude < 43.6618743990199 && latitude > 43.6473318013964) {
+                        jsonFile = "./models/South_Downtown_3.geojson";
+                    }
+
+                    if (longitude > -79.3297000515231 && longitude < -79.3062106656524 && latitude < 43.6618743990199 && latitude > 43.6473318013964) {
+                        jsonFile = "./models/South_Downtown_4.geojson";
+                    }
+
+                    if (longitude > -79.3062106656524 && longitude < -79.2827212797817 && latitude < 43.6618743990199 && latitude > 43.6473318013964) {
+                        jsonFile = "./models/South_Downtown_5.geojson";
+                    }
+
+
+                    // North Downtown
+
+                    if (longitude > -79.4001682091352 && longitude < -79.3766788232645 && latitude < 43.6764169966434 && latitude > 43.6618743990199) {
+                        jsonFile = "./models/North_Downtown_1.geojson";
+                    }
+
+                    if (longitude > -79.3766788232645 && longitude < -79.3531894373938 && latitude < 43.6764169966434 && latitude > 43.6618743990199) {
+                        jsonFile = "./models/North_Downtown_2.geojson";
+                    }
+
+                    if (longitude > -79.3531894373938 && longitude < -79.3297000515231 && latitude < 43.6764169966434 && latitude > 43.6618743990199) {
+                        jsonFile = "./models/North_Downtown_3.geojson";
+                    }
+
+                    if (longitude > -79.3297000515231 && longitude < -79.3062106656524 && latitude < 43.6764169966434 && latitude > 43.6618743990199) {
+                        jsonFile = "./models/North_Downtown_4.geojson";
+                    }
+
+                    if (longitude > -79.3062106656524 && longitude < -79.2827212797817 && latitude < 43.6764169966434 && latitude > 43.6618743990199) {
+                        jsonFile = "./models/North_Downtown_5.geojson";
+                    }
+
+
+                    // MidTown
+
+                    if (longitude > -79.4001682091352 && longitude < -79.3766788232645 && latitude < 43.6909595942669 && latitude > 43.6764169966434) {
+                        jsonFile = "./models/Midtown_1.geojson";
+                    }
+
+                    if (longitude > -79.3766788232645 && longitude < -79.3531894373938 && latitude < 43.6909595942669 && latitude > 43.6764169966434) {
+                        jsonFile = "./models/Midtown_2.geojson";
+                    }
+
+                    if (longitude > -79.3531894373938 && longitude < -79.3297000515231 && latitude < 43.6909595942669 && latitude > 43.6764169966434) {
+                        jsonFile = "./models/Midtown_3.geojson";
+                    }
+
+                    if (longitude > -79.3297000515231 && longitude < -79.3062106656524 && latitude < 43.6909595942669 && latitude > 43.6764169966434) {
+                        jsonFile = "./models/Midtown_4.geojson";
+                    }
+
+                    if (longitude > -79.3062106656524 && longitude < -79.2827212797817 && latitude < 43.6909595942669 && latitude > 43.6764169966434) {
+                        jsonFile = "./models/Midtown_5.geojson";
+                    }
+
+                    // initialize 3D environment and objects
+                    $.getJSON(jsonFile, function(data) {
+                        log("Loading of map model completed");
+                        json = data;
+
+                        initScene();
+                    });
                 }
 
                 // function createInfoSelection() {
