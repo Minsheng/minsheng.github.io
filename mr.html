@@ -436,9 +436,10 @@
 
                                 //Calculate the color of the object
                                 //In this sample code we use a blue to red range to visualize the height of the object (blue short to red tall)
-                                var red = Math.round((h / max) * 255.0);
+                                // var red = Math.round((h / max) * 255.0);
                                 var blue = Math.round(255.0 - (h / max) * 255.0);
-                                var color = new THREE.Color("rgb(" + red + ",0," + blue + ")");
+                                // var green = 128;
+                                var color = new THREE.Color("rgb(" + blue + "," + blue + "," + blue + ")");
 
                                 addShape(new THREE.Shape(points), z * z_rel, color, 0, 50, 0, r, 0, 0, 1);
                             }
