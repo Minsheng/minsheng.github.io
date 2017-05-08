@@ -40,6 +40,8 @@
         const animatedPokemonHeight = 40;
         const animatedPokemonXOffset = 15;
         const animatedPokemonYOffset = 15;
+        const puff_path = 'img/puff.png';
+        const pika_path = 'img/pikachu.png';
         var pokemonCollection = [];
         var animatedPokemonToAdd = [];
 
@@ -136,10 +138,10 @@
                 }
 
                 if (getRandomInt(0,1)) {
-                    let puff = new AnimatedPokemon('puff', x, y, animatedPokemonWidth, animatedPokemonHeight, 'http://media.pldh.net/pokemon/gen6/xy-animated/025.gif');
+                    let puff = new AnimatedPokemon('puff', x, y, animatedPokemonWidth, animatedPokemonHeight, puff_path);
                     animatedPokemonToAdd.push(puff);
                 } else {
-                    let pikachu = new AnimatedPokemon('pikachu', x, y, animatedPokemonWidth, animatedPokemonHeight, 'http://media.pldh.net/pokemon/gen6/xy-animated/039.gif');
+                    let pikachu = new AnimatedPokemon('pikachu', x, y, animatedPokemonWidth, animatedPokemonHeight, pika_path);
                     animatedPokemonToAdd.push(pikachu);
                 }
             }
@@ -208,8 +210,8 @@
 
         /* Draw two pokemon images on the canvas */
         function drawPokemon(ctx_scene, cw, ch) {
-            let puff = new Pokemon(ctx_scene, 'puff', cw*0.75, ch - 100, 80, 80, 'http://www.ssbwiki.com/images/thumb/a/a6/Jigglypuff_SSB4.png/250px-Jigglypuff_SSB4.png');
-            let pikachu = new Pokemon(ctx_scene, 'pikachu', cw*0.85, ch - 100, 80, 80, 'http://origin.pokedex3d.com/assets/images/pokemon/pikachu.png');
+            let puff = new Pokemon(ctx_scene, 'puff', cw*0.75, ch - 100, 80, 80, puff_path);
+            let pikachu = new Pokemon(ctx_scene, 'pikachu', cw*0.85, ch - 100, 80, 80, pika_path);
             puff.draw();
             pikachu.draw();
         }
